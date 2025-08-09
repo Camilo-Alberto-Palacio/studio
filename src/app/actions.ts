@@ -3,12 +3,8 @@
 import { adviseDailyNotebooks } from '@/ai/flows/daily-notebook-advisor';
 import { organizeScheduleFromImage } from '@/ai/flows/organize-schedule-flow';
 
-export async function getNotebookAdvice(schedule: string, vacations: string[] = []) {
+export async function getNotebookAdvice(schedule: string, date: string, vacations: string[] = []) {
   try {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const date = tomorrow.toISOString().split('T')[0];
-
     const result = await adviseDailyNotebooks({
       schedule,
       date,

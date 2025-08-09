@@ -13,7 +13,7 @@ import {z} from 'genkit';
 
 const AdviseDailyNotebooksInputSchema = z.object({
   schedule: z.string().describe('The user schedule as a JSON string.'),
-  date: z.string().describe('The date to check the schedule for, in ISO format.'),
+  date: z.string().describe('The date to check the schedule for, in YYYY-MM-DD format.'),
   vacations: z.array(z.string()).describe('An array of vacation dates in YYYY-MM-DD format.'),
 });
 export type AdviseDailyNotebooksInput = z.infer<typeof AdviseDailyNotebooksInputSchema>;
@@ -21,7 +21,7 @@ export type AdviseDailyNotebooksInput = z.infer<typeof AdviseDailyNotebooksInput
 const AdviseDailyNotebooksOutputSchema = z.object({
   notebooks: z
     .string()
-    .describe('A comma separated list of notebooks required for tomorrow based on the schedule.'),
+    .describe('A comma separated list of notebooks required for the specified date based on the schedule.'),
   isVacation: z.boolean().describe('Whether the given date is a vacation day.'),
 });
 export type AdviseDailyNotebooksOutput = z.infer<typeof AdviseDailyNotebooksOutputSchema>;

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles } from 'lucide-react';
+import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles, CalendarDays } from 'lucide-react';
 import { isEmpty, omitBy } from 'lodash';
 
 type AppViewProps = {
@@ -27,7 +27,47 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [scheduleExists, setScheduleExists] = useState(true);
   const [processingImage, setProcessingImage] = useState(false);
+  const [adviceDate, setAdviceDate] = useState(new Date());
+  const [adviceTitle, setAdviceTitle] = useState('Cuadernos para Hoy');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const determineAdviceDate = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // Sunday - 0, Monday - 1, etc.
+    const hour = now.getHours();
+
+    let targetDate = new Date(now);
+    let title = 'Cuadernos para Hoy';
+
+    // Monday to Thursday
+    if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+      if (hour >= 15) { // After 3 PM, show tomorrow's schedule
+        targetDate.setDate(now.getDate() + 1);
+        title = 'Cuadernos para Mañana';
+      }
+    }
+    // Friday
+    else if (dayOfWeek === 5) {
+      if (hour >= 15) { // After 3 PM on Friday, show Monday's schedule
+        targetDate.setDate(now.getDate() + 3);
+        title = 'Cuadernos para el Lunes';
+      }
+    }
+    // Saturday
+    else if (dayOfWeek === 6) {
+      targetDate.setDate(now.getDate() + 2);
+      title = 'Cuadernos para el Lunes';
+    }
+    // Sunday
+    else if (dayOfWeek === 0) {
+      targetDate.setDate(now.getDate() + 1);
+      title = 'Cuadernos para Mañana';
+    }
+    
+    setAdviceDate(targetDate);
+    setAdviceTitle(title);
+    return targetDate;
+  };
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
     if (!user) return;
@@ -43,11 +83,14 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
       const scheduleSnap = await getDoc(scheduleRef);
       const scheduleData = scheduleSnap.data();
 
+      const targetDate = determineAdviceDate();
+      const dateString = targetDate.toISOString().split('T')[0];
+
       if (scheduleSnap.exists() && scheduleData?.schedule && !isEmpty(scheduleData.schedule)) {
         setScheduleExists(true);
         const scheduleString = JSON.stringify(scheduleData.schedule);
         const vacations = scheduleData.vacations || [];
-        const result = await getNotebookAdvice(scheduleString, vacations);
+        const result = await getNotebookAdvice(scheduleString, dateString, vacations);
         
         if (result.success) {
           setIsVacation(result.isVacation || false);
@@ -129,7 +172,6 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     }
   };
 
-
   const renderNotebooks = () => {
     if (loading) {
       return (
@@ -184,8 +226,13 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     }
 
     if (notebooks.length === 0) {
-        return <p className="text-muted-foreground text-center italic py-4">No se necesitan cuadernos para mañana. ¡Disfruta tu día libre!</p>;
+      const dayOfWeek = adviceDate.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        return <p className="text-muted-foreground text-center italic py-4">No hay clases programadas. ¡Disfruta tu fin de semana!</p>;
+      }
+      return <p className="text-muted-foreground text-center italic py-4">No se necesitan cuadernos. ¡Disfruta tu día libre!</p>;
     }
+
 
     return notebooks.map((notebook, index) => (
       <div key={index} className="flex items-center justify-between gap-3 p-3 bg-secondary rounded-md animate-in fade-in-50">
@@ -222,8 +269,11 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>Cuadernos para Mañana</CardTitle>
-              <CardDescription>Esto es lo que necesitas empacar para tus clases.</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-muted-foreground" />
+                {adviceTitle}
+              </CardTitle>
+              <CardDescription>Esto es lo que necesitas empacar.</CardDescription>
             </div>
             <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
