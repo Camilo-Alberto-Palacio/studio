@@ -24,13 +24,11 @@ type Schedule = {
     [key: string]: string;
 };
 
-const initialSchedule = {
-    Monday: '',
-    Tuesday: '',
-    Wednesday: '',
-    Thursday: '',
-    Friday: '',
-};
+const initialSchedule: Schedule = internalDaysOfWeek.reduce((acc, day) => {
+    acc[day] = '';
+    return acc;
+}, {} as Schedule);
+
 
 export default function SettingsView({ setView }: SettingsViewProps) {
   const { user } = useAuth();
@@ -54,6 +52,8 @@ export default function SettingsView({ setView }: SettingsViewProps) {
         }, {} as Schedule);
         setSchedule(fullSchedule);
         setOriginalSchedule(fullSchedule);
+      } else {
+        setOriginalSchedule(initialSchedule);
       }
     } catch (error) {
       console.error(error);
@@ -78,13 +78,13 @@ export default function SettingsView({ setView }: SettingsViewProps) {
       const scheduleRef = doc(db, 'schedules', user.uid);
       
       const scheduleToSave = Object.entries(schedule).reduce((acc, [day, subjects]) => {
-          if(subjects.trim()) {
+          if(subjects && subjects.trim()) {
               acc[day] = subjects.split(',').map(s => s.trim()).filter(Boolean).join(', ');
           }
           return acc;
       }, {} as Schedule);
 
-      await setDoc(scheduleRef, scheduleToSave);
+      await setDoc(scheduleRef, scheduleToSave, { merge: true });
       toast({ title: '¡Éxito!', description: 'Tu horario ha sido guardado.' });
       setView('app');
     } catch (error: any) {
