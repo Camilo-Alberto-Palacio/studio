@@ -84,11 +84,11 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
 
     if (!scheduleExists) {
         return (
-            <div className="text-center p-6 border-2 border-dashed rounded-lg bg-secondary">
-                <p className="text-muted-foreground mb-4">Aún no has configurado tu horario.</p>
+            <div className="text-center p-6 border-2 border-dashed rounded-lg bg-card">
+                <p className="text-muted-foreground mb-4 font-medium">Parece que aún no has configurado tu horario semanal.</p>
                 <Button onClick={() => setView('settings')}>
                     <Settings className="mr-2 h-4 w-4" />
-                    Configurar Horario
+                    Ir a Configuración
                 </Button>
             </div>
         );
