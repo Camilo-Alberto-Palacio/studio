@@ -38,7 +38,7 @@ async function toWav(
         bitDepth: sampleWidth * 8,
       });
   
-      let bufs = [] as any[];
+      const bufs: Buffer[] = [];
       writer.on('error', reject);
       writer.on('data', function (d) {
         bufs.push(d);
@@ -71,7 +71,7 @@ const textToSpeechFlow = ai.defineFlow(
       },
       prompt: query,
     });
-    if (!media) {
+    if (!media?.url) {
       throw new Error('La IA no devolvió ningún medio de audio.');
     }
     const audioBuffer = Buffer.from(

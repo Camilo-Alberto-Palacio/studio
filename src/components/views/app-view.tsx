@@ -47,6 +47,8 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         if(result.success && result.audio) {
             if(audioRef.current) {
                 audioRef.current.pause();
+                audioRef.current.src = '';
+                audioRef.current = null;
             }
             const audio = new Audio(result.audio);
             audioRef.current = audio;
