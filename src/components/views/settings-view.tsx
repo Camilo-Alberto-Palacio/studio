@@ -23,6 +23,7 @@ type SettingsViewProps = {
   setView: (view: 'app' | 'settings' | 'profiles') => void;
   onSettingsSaved: () => void;
   profiles: Profile[];
+  onProfileAdded: (profile: Profile) => void;
 };
 
 const daysOfWeek = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -37,7 +38,7 @@ const initialSchedule: Schedule = internalDaysOfWeek.reduce((acc, day) => {
   return acc;
 }, {} as Schedule);
 
-export default function SettingsView({ setView, onSettingsSaved, profiles: initialProfiles }: SettingsViewProps) {
+export default function SettingsView({ setView, onSettingsSaved, profiles: initialProfiles, onProfileAdded }: SettingsViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -54,19 +55,15 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // If there's no selected profile but there are profiles, select the first one.
-    // This happens when navigating directly to settings.
     if (!selectedProfileId && initialProfiles.length > 0) {
       setSelectedProfileId(initialProfiles[0].id);
     } else if (JSON.stringify(profiles) !== JSON.stringify(initialProfiles)) {
-       // Keep local state in sync with props
       setProfiles(initialProfiles);
     }
   }, [initialProfiles, selectedProfileId, profiles]);
   
   const fetchProfileData = useCallback(async () => {
     if (!user || !selectedProfileId) {
-      // If no profile is selected (e.g., all were deleted), clear the forms.
       setSchedule(initialSchedule);
       setVacations([]);
       setOriginalSchedule(initialSchedule);
@@ -99,7 +96,6 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
         setVacations(existingVacations);
         setOriginalVacations(existingVacations);
       } else {
-        // This can happen if a profile was just created but not yet saved.
         setSchedule(initialSchedule);
         setOriginalSchedule(initialSchedule);
         setVacations([]);
@@ -150,7 +146,7 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
       toast({ title: '¡Éxito!', description: `El horario para ${profiles.find(p => p.id === selectedProfileId)?.name} ha sido guardado.` });
       setOriginalSchedule(scheduleToSave);
       setOriginalVacations(vacations);
-      onSettingsSaved(); // This will refetch profiles and navigate back to the selector
+      onSettingsSaved();
 
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: `No se pudo guardar: ${error.message}` });
@@ -164,10 +160,8 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
     setProfiles(newProfiles);
     
     if (isNewProfileAdded) {
-      // If a new profile was added, select it immediately.
       setSelectedProfileId(newProfiles[newProfiles.length - 1].id);
     } else if (!newProfiles.some(p => p.id === selectedProfileId)) {
-      // If the currently selected profile was deleted, select the first one, or none.
       setSelectedProfileId(newProfiles.length > 0 ? newProfiles[0].id : null);
     }
   }
@@ -198,7 +192,7 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
             Volver a Perfiles
         </Button>
         
-        <ProfileManager profiles={profiles} onProfilesUpdate={onProfilesUpdate} />
+        <ProfileManager profiles={profiles} onProfilesUpdate={onProfilesUpdate} onProfileAdded={onProfileAdded} />
         
         {profiles.length > 0 ? (
             <Card className="shadow-lg mt-6">

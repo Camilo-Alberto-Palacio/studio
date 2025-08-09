@@ -16,9 +16,10 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 type ProfileManagerProps = {
   profiles: Profile[];
   onProfilesUpdate: (profiles: Profile[]) => void;
+  onProfileAdded: (profile: Profile) => void;
 };
 
-export default function ProfileManager({ profiles, onProfilesUpdate }: ProfileManagerProps) {
+export default function ProfileManager({ profiles, onProfilesUpdate, onProfileAdded }: ProfileManagerProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [newProfileName, setNewProfileName] = useState('');
@@ -70,7 +71,7 @@ export default function ProfileManager({ profiles, onProfilesUpdate }: ProfileMa
         await batch.commit();
 
         toast({ title: 'Perfil añadido', description: `Se ha creado el perfil "${newProfile.name}".` });
-        onProfilesUpdate([...profiles, newProfile]);
+        onProfileAdded(newProfile);
         setNewProfileName('');
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: `No se pudo añadir el perfil: ${error.message}` });

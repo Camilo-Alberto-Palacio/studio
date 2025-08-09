@@ -113,6 +113,12 @@ function AppContent() {
     }
   };
 
+  const handleProfileAdded = (newProfile: Profile) => {
+    setProfiles(prev => [...prev, newProfile]);
+    setSelectedProfile(newProfile);
+    setCurrentView('app');
+  }
+
 
   const LoadingSkeleton = () => (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
@@ -143,7 +149,7 @@ function AppContent() {
           {currentView === 'app' && selectedProfile ? (
             <AppView setView={handleSetView} profile={selectedProfile} onProfileChange={handleGoToProfiles} />
           ) : currentView === 'settings' ? (
-            <SettingsView setView={handleSetView} onSettingsSaved={handleSettingsSaved} profiles={profiles} />
+            <SettingsView setView={handleSetView} onSettingsSaved={handleSettingsSaved} profiles={profiles} onProfileAdded={handleProfileAdded} />
           ) : (
             <ProfileSelectorView profiles={profiles} onProfileSelect={handleProfileSelected} setView={handleSetView} onDeleteProfile={handleDeleteProfile} />
           )}
