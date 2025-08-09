@@ -73,7 +73,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         toast({
             variant: 'destructive',
             title: 'Error de audio',
-            description: 'No se pudo generar la narración. Inténtalo de nuevo.',
+            description: 'No se pudo generar el audio.',
         });
         setIsSpeaking(false);
     }
