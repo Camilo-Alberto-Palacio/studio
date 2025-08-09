@@ -2,6 +2,7 @@
 
 import { adviseDailyNotebooks } from '@/ai/flows/daily-notebook-advisor';
 import { organizeScheduleFromImage } from '@/ai/flows/organize-schedule-flow';
+import { textToSpeech } from '@/ai/flows/text-to-speech-flow';
 
 export async function getNotebookAdvice(schedule: string, date: string, vacations: string[] = []) {
   try {
@@ -25,5 +26,15 @@ export async function getScheduleFromImage(photoDataUri: string) {
     } catch (error) {
         console.error('Error getting schedule from image:', error);
         return { success: false, error: 'No se pudo procesar la imagen del horario.' };
+    }
+}
+
+export async function getAudioForText(text: string) {
+    try {
+        const result = await textToSpeech(text);
+        return { success: true, audio: result.media };
+    } catch (error) {
+        console.error('Error generating audio:', error);
+        return { success: false, error: 'No se pudo generar el audio.' };
     }
 }

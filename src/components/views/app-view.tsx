@@ -5,12 +5,12 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase/config';
 import { useAuth } from '@/hooks/use-auth';
-import { getNotebookAdvice, getScheduleFromImage } from '@/app/actions';
+import { getNotebookAdvice, getScheduleFromImage, getAudioForText } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles, CalendarDays } from 'lucide-react';
+import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles, CalendarDays, Volume2, Loader2 } from 'lucide-react';
 import { isEmpty, omitBy } from 'lodash';
 
 type AppViewProps = {
@@ -30,6 +30,8 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const [adviceDate, setAdviceDate] = useState(new Date());
   const [adviceTitle, setAdviceTitle] = useState('Cuadernos para Hoy');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const determineAdviceDate = () => {
     const now = new Date();
@@ -171,6 +173,33 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         setProcessingImage(false);
     }
   };
+  
+  const handlePlayAudio = async () => {
+    if (isGeneratingAudio || notebooks.length === 0) return;
+    
+    setIsGeneratingAudio(true);
+    try {
+        const textToSay = `Para ${adviceTitle.split(' ').slice(2).join(' ')}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
+        const result = await getAudioForText(textToSay);
+
+        if(result.success && result.audio) {
+            if(audioRef.current) {
+                audioRef.current.pause();
+            }
+            const audio = new Audio(result.audio);
+            audioRef.current = audio;
+            audio.play();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    } catch (error) {
+        console.error(error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo generar la narración.' });
+    } finally {
+        setIsGeneratingAudio(false);
+    }
+  };
+
 
   const renderNotebooks = () => {
     if (loading) {
@@ -267,17 +296,22 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
 
       <Card className="shadow-lg animate-in fade-in-50">
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
               <CardTitle className="flex items-center gap-2">
                 <CalendarDays className="h-5 w-5 text-muted-foreground" />
                 {adviceTitle}
               </CardTitle>
               <CardDescription>Esto es lo que necesitas empacar.</CardDescription>
             </div>
-            <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" onClick={handlePlayAudio} disabled={isGeneratingAudio || notebooks.length === 0 || loading} aria-label="Leer en voz alta">
+                {isGeneratingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
