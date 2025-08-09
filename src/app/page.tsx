@@ -9,8 +9,10 @@ import SettingsView from '@/components/views/settings-view';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import ProfileSelectorView from '@/components/views/profile-selector-view';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
+import { useToast } from '@/hooks/use-toast';
+
 
 export type Profile = {
   id: string;
@@ -19,6 +21,7 @@ export type Profile = {
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const { toast } = useToast();
   const [currentView, setCurrentView] = useState<'app' | 'settings' | 'profiles'>('profiles');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
@@ -87,6 +90,30 @@ function AppContent() {
     setCurrentView('profiles');
   }
 
+  const handleDeleteProfile = async (profileId: string) => {
+    if (!user) return;
+    try {
+        const updatedProfiles = profiles.filter(p => p.id !== profileId);
+        const userDocRef = doc(db, 'users', user.uid);
+        const profileDocRef = doc(db, 'users', user.uid, 'profiles', profileId);
+        
+        const batch = writeBatch(db);
+        batch.delete(profileDocRef);
+        batch.update(userDocRef, { profiles: updatedProfiles });
+        await batch.commit();
+
+        toast({ title: 'Perfil eliminado', description: 'El perfil ha sido eliminado correctamente.' });
+        setProfiles(updatedProfiles);
+        // If the deleted profile was the selected one, clear it
+        if (selectedProfile?.id === profileId) {
+            setSelectedProfile(null);
+        }
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: `No se pudo eliminar el perfil: ${error.message}` });
+    }
+  };
+
+
   const LoadingSkeleton = () => (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
@@ -118,7 +145,7 @@ function AppContent() {
           ) : currentView === 'settings' ? (
             <SettingsView setView={handleSetView} onSettingsSaved={handleSettingsSaved} profiles={profiles} />
           ) : (
-            <ProfileSelectorView profiles={profiles} onProfileSelect={handleProfileSelected} setView={handleSetView} />
+            <ProfileSelectorView profiles={profiles} onProfileSelect={handleProfileSelected} setView={handleSetView} onDeleteProfile={handleDeleteProfile} />
           )}
         </div>
       )}
