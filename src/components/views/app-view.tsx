@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Book, Settings, LogOut, Backpack, RefreshCw, X } from 'lucide-react';
+import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff } from 'lucide-react';
 
 type AppViewProps = {
   setView: (view: 'app' | 'settings') => void;
@@ -21,6 +21,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [notebooks, setNotebooks] = useState<string[]>([]);
+  const [isVacation, setIsVacation] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [scheduleExists, setScheduleExists] = useState(true);
@@ -42,19 +43,24 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         setScheduleExists(true);
         const scheduleData = scheduleSnap.data();
         const scheduleString = JSON.stringify(scheduleData);
-        const result = await getNotebookAdvice(scheduleString);
+        const vacations = scheduleData.vacations || [];
+        const result = await getNotebookAdvice(scheduleString, vacations);
         
-        if (result.success && result.notebooks) {
-          setNotebooks(result.notebooks.split(',').map(n => n.trim()).filter(Boolean));
-        } else if (!result.success) {
+        if (result.success) {
+          setIsVacation(result.isVacation || false);
+          if (result.notebooks) {
+            setNotebooks(result.notebooks.split(',').map(n => n.trim()).filter(Boolean));
+          } else {
+            setNotebooks([]);
+          }
+        } else {
           toast({ variant: 'destructive', title: 'Error', description: result.error });
           setNotebooks([]);
-        } else {
-            setNotebooks([]);
         }
       } else {
         setScheduleExists(false);
         setNotebooks([]);
+        setIsVacation(false);
       }
     } catch (error) {
       console.error(error);
@@ -104,6 +110,16 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
                     <Settings className="mr-2 h-4 w-4" />
                     Ir a Configuración
                 </Button>
+            </div>
+        );
+    }
+    
+    if (isVacation) {
+        return (
+            <div className="text-center p-6 border-2 border-dashed rounded-lg bg-card">
+                 <CalendarOff className="mx-auto h-10 w-10 text-primary mb-3" />
+                <p className="text-muted-foreground font-medium">¡Estás de vacaciones! No necesitas cuadernos.</p>
+                <p className="text-muted-foreground text-sm">Disfruta de tu tiempo libre.</p>
             </div>
         );
     }

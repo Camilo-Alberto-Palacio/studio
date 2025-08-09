@@ -10,19 +10,27 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, CalendarIcon } from 'lucide-react';
 import { isEqual, omitBy } from 'lodash';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 type SettingsViewProps = {
   setView: (view: 'app' | 'settings') => void;
 };
 
-const daysOfWeek = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
-const internalDaysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const daysOfWeek = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const internalDaysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 type Schedule = {
     [key: string]: string;
 };
+
+type ScheduleDocument = {
+    schedule: Schedule;
+    vacations: string[];
+}
 
 const initialSchedule: Schedule = internalDaysOfWeek.reduce((acc, day) => {
     acc[day] = '';
@@ -34,7 +42,11 @@ export default function SettingsView({ setView }: SettingsViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [schedule, setSchedule] = useState<Schedule>(initialSchedule);
+  const [vacations, setVacations] = useState<Date[]>([]);
+  
   const [originalSchedule, setOriginalSchedule] = useState<Schedule>(initialSchedule);
+  const [originalVacations, setOriginalVacations] = useState<Date[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -45,15 +57,23 @@ export default function SettingsView({ setView }: SettingsViewProps) {
       const scheduleRef = doc(db, 'schedules', user.uid);
       const scheduleSnap = await getDoc(scheduleRef);
       if (scheduleSnap.exists()) {
-        const existingSchedule = scheduleSnap.data() as Schedule;
+        const data = scheduleSnap.data();
+        const existingSchedule = data.schedule || {};
+        const existingVacations = (data.vacations || []).map((v: string) => new Date(v));
+        
         const fullSchedule = internalDaysOfWeek.reduce((acc, day) => {
             acc[day] = existingSchedule[day] || '';
             return acc;
         }, {} as Schedule);
+        
         setSchedule(fullSchedule);
         setOriginalSchedule(fullSchedule);
+
+        setVacations(existingVacations);
+        setOriginalVacations(existingVacations);
       } else {
         setOriginalSchedule(initialSchedule);
+        setOriginalVacations([]);
       }
     } catch (error) {
       console.error(error);
@@ -86,19 +106,23 @@ export default function SettingsView({ setView }: SettingsViewProps) {
           return acc;
       }, {} as Schedule);
 
-      const cleanedSchedule = omitBy(scheduleToSave, (value) => value === '');
+      const cleanedSchedule = omitBy(scheduleToSave, (value) => !value);
+      const vacationsToSave = vacations.map(d => format(d, 'yyyy-MM-dd'));
 
-      await setDoc(scheduleRef, cleanedSchedule);
-      toast({ title: '¡Éxito!', description: 'Tu horario ha sido guardado.' });
+      await setDoc(scheduleRef, {
+        schedule: cleanedSchedule,
+        vacations: vacationsToSave
+      });
+      toast({ title: '¡Éxito!', description: 'Tu horario y vacaciones han sido guardados.' });
       setView('app');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: `No se pudo guardar el horario: ${error.message}` });
+      toast({ variant: 'destructive', title: 'Error', description: `No se pudo guardar: ${error.message}` });
     } finally {
       setSaving(false);
     }
   };
 
-  const hasChanges = !isEqual(schedule, originalSchedule);
+  const hasChanges = !isEqual(schedule, originalSchedule) || !isEqual(vacations.map(d => d.toISOString()), originalVacations.map(d => d.toISOString()));
 
   if (loading) {
       return (
@@ -113,12 +137,17 @@ export default function SettingsView({ setView }: SettingsViewProps) {
                     <Skeleton className="h-4 w-full" />
                 </CardHeader>
                 <CardContent className="space-y-6 pt-6">
-                    {daysOfWeek.map(day => (
+                    {daysOfWeek.slice(0, 5).map(day => (
                         <div key={day} className="space-y-2">
                            <Skeleton className="h-6 w-24" />
                            <Skeleton className="h-10 w-full" />
                         </div>
                     ))}
+                    <div className="pt-4">
+                        <Skeleton className="h-7 w-40 mb-2" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-64 w-full mt-2" />
+                    </div>
                     <Skeleton className="h-10 w-36 mt-8" />
                 </CardContent>
             </Card>
@@ -134,27 +163,47 @@ export default function SettingsView({ setView }: SettingsViewProps) {
         </Button>
         <Card className="shadow-lg">
             <CardHeader>
-                <CardTitle>Configura tu Horario</CardTitle>
+                <CardTitle>Configura tu Horario y Vacaciones</CardTitle>
                 <CardDescription>
-                    Ingresa tus asignaturas o libros necesarios para cada día, separados por comas.
+                    Ingresa tus asignaturas para cada día y selecciona tus días de vacaciones.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-6">
-                    {daysOfWeek.map((day, index) => (
-                        <div key={internalDaysOfWeek[index]} className="space-y-2">
-                            <Label htmlFor={day} className="text-base font-medium">{day}</Label>
-                            <Input
-                                id={day}
-                                value={schedule[internalDaysOfWeek[index]] || ''}
-                                onChange={(e) => handleInputChange(internalDaysOfWeek[index], e.target.value)}
-                                placeholder="Ej: Matemáticas, Historia, Biología"
+                <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-8">
+                    <div>
+                        <h3 className="text-lg font-medium mb-4">Horario Semanal</h3>
+                        <div className="space-y-6">
+                            {daysOfWeek.slice(0, 5).map((day, index) => (
+                                <div key={internalDaysOfWeek[index]} className="space-y-2">
+                                    <Label htmlFor={day} className="text-base font-medium">{day}</Label>
+                                    <Input
+                                        id={day}
+                                        value={schedule[internalDaysOfWeek[index]] || ''}
+                                        onChange={(e) => handleInputChange(internalDaysOfWeek[index], e.target.value)}
+                                        placeholder="Ej: Matemáticas, Historia, Biología"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-medium mb-2">Vacaciones</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            Selecciona los días en el calendario en los que no tendrás clases.
+                        </p>
+                        <div className="flex justify-center rounded-md border">
+                            <Calendar
+                                mode="multiple"
+                                min={1}
+                                selected={vacations}
+                                onSelect={(dates) => setVacations(dates || [])}
+                                locale={es}
                             />
                         </div>
-                    ))}
+                    </div>
                     <Button type="submit" disabled={saving || !hasChanges} className="mt-8 bg-accent hover:bg-accent/90">
                         <Save className="mr-2 h-4 w-4" />
-                        {saving ? 'Guardando...' : 'Guardar Horario'}
+                        {saving ? 'Guardando...' : 'Guardar Cambios'}
                     </Button>
                 </form>
             </CardContent>
