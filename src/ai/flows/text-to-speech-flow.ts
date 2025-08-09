@@ -72,7 +72,7 @@ const textToSpeechFlow = ai.defineFlow(
       prompt: query,
     });
     if (!media) {
-      throw new Error('No se pudo generar el audio.');
+      throw new Error('La IA no devolvió ningún medio de audio.');
     }
     const audioBuffer = Buffer.from(
       media.url.substring(media.url.indexOf(',') + 1),
