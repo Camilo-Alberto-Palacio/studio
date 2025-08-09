@@ -13,6 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles, CalendarDays, Volume2, Loader2, Users } from 'lucide-react';
 import { isEmpty, omitBy } from 'lodash';
 import { Profile } from '@/app/page';
+import { useIsMobile } from '@/hooks/use-mobile';
+
 
 type AppViewProps = {
   setView: (view: 'app' | 'settings' | 'profiles') => void;
@@ -35,47 +37,45 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const hasPlayedAuto = useRef(false);
+  const isMobile = useIsMobile();
 
 
-  const handlePlayAudio = useCallback(async (isAutoPlay = false) => {
+  const playAudio = useCallback(async () => {
     if (isSpeaking) {
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-        }
-        setIsSpeaking(false);
-        return;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setIsSpeaking(false);
+      return;
     }
-
+    
     if (notebooks.length === 0) {
-        if (!isAutoPlay) {
-            toast({ title: 'Nada para leer', description: 'No hay cuadernos en la lista para leer en voz alta.' });
-        }
-        return;
+      toast({ title: 'Nada para leer', description: 'No hay cuadernos en la lista para leer en voz alta.' });
+      return;
     }
-
+    
     setIsSpeaking(true);
     const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
-
+    
     try {
-        const result = await getAudioForText(textToSay);
-        if (result.success && result.audioDataUri) {
-            if (audioRef.current) {
-                audioRef.current.src = result.audioDataUri;
-                await audioRef.current.play();
-            }
-        } else {
-            throw new Error(result.error || 'No se pudo generar el audio.');
+      const result = await getAudioForText(textToSay);
+      if (result.success && result.audioDataUri) {
+        const audio = new Audio(result.audioDataUri);
+        audioRef.current = audio;
+        audio.play();
+        audio.onended = () => setIsSpeaking(false);
+        audio.onerror = () => {
+          toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el archivo de audio.' });
+          setIsSpeaking(false);
         }
+      } else {
+        throw new Error(result.error || 'No se pudo generar el audio.');
+      }
     } catch (error: any) {
-        console.error('Speech Error', error);
-        toast({
-            variant: 'destructive',
-            title: 'Error de audio',
-            description: 'No se pudo generar el audio.',
-        });
-        setIsSpeaking(false);
+      console.error('Speech Error', error);
+      toast({ variant: 'destructive', title: 'Error de audio', description: error.message || 'No se pudo generar el audio.' });
+      setIsSpeaking(false);
     }
   }, [isSpeaking, notebooks, profile.name, adviceTitle, toast]);
 
@@ -88,15 +88,11 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     } else {
       setLoading(true);
     }
-    
-    hasPlayedAuto.current = false;
-    if (isSpeaking) {
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-        }
-        setIsSpeaking(false);
+
+    if (audioRef.current) {
+      audioRef.current.pause();
     }
+    setIsSpeaking(false);
 
     try {
       const profileDocRef = doc(db, 'users', user.uid, 'profiles', profile.id);
@@ -175,7 +171,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         setLoading(false);
       }
     }
-  }, [user, profile, toast, isSpeaking]);
+  }, [user, profile, toast]);
   
   useEffect(() => {
     fetchAdvice(false);
@@ -183,33 +179,17 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   }, [profile]);
   
   useEffect(() => {
-    if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedAuto.current) {
-        handlePlayAudio(true);
-        hasPlayedAuto.current = true;
+    // Automatic playback logic
+    const hasPlayed = sessionStorage.getItem(`played_for_${profile.id}`);
+    
+    // Do not autoplay on mobile devices due to browser restrictions
+    if (isMobile) return;
+
+    if (!loading && !isVacation && notebooks.length > 0 && !hasPlayed) {
+        playAudio();
+        sessionStorage.setItem(`played_for_${profile.id}`, 'true');
     }
-  }, [loading, notebooks, isVacation, handlePlayAudio]);
-
-  useEffect(() => {
-    // Setup audio element and its event listeners
-    const audio = new Audio();
-    audioRef.current = audio;
-
-    const handleAudioEnd = () => setIsSpeaking(false);
-    audio.addEventListener('ended', handleAudioEnd);
-    audio.addEventListener('pause', handleAudioEnd); // Also consider speaking finished if paused manually
-    audio.addEventListener('error', handleAudioEnd);
-
-    return () => {
-      // Cleanup
-      if (audioRef.current) {
-        audioRef.current.removeEventListener('ended', handleAudioEnd);
-        audioRef.current.removeEventListener('pause', handleAudioEnd);
-        audioRef.current.removeEventListener('error', handleAudioEnd);
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
+  }, [loading, isVacation, notebooks, profile.id, playAudio, isMobile]);
 
   const handleLogout = async () => {
     try {
@@ -367,7 +347,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
               <CardDescription>Esto es lo que {profile.name} necesita empacar.</CardDescription>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" onClick={() => handlePlayAudio(false)} disabled={notebooks.length === 0 || loading} aria-label="Leer en voz alta">
+              <Button variant="outline" size="icon" onClick={playAudio} disabled={notebooks.length === 0 || loading} aria-label="Leer en voz alta">
                 {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
               </Button>
               <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
