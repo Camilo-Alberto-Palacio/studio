@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase/config';
 import { useAuth } from '@/hooks/use-auth';
@@ -10,15 +10,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles, CalendarDays, Volume2, Loader2 } from 'lucide-react';
+import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles, CalendarDays, Volume2, Loader2, Users } from 'lucide-react';
 import { isEmpty, omitBy } from 'lodash';
+import { Profile } from '@/app/page';
 
 type AppViewProps = {
-  setView: (view: 'app' | 'settings') => void;
-  shouldRefresh?: boolean;
+  setView: (view: 'app' | 'settings' | 'profiles') => void;
+  profile: Profile;
 };
 
-export default function AppView({ setView, shouldRefresh }: AppViewProps) {
+export default function AppView({ setView, profile }: AppViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [notebooks, setNotebooks] = useState<string[]>([]);
@@ -39,7 +40,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     
     setIsGeneratingAudio(true);
     try {
-        const textToSay = `Para ${title.split(' ').slice(2).join(' ')}, necesitas los siguientes cuadernos: ${notebookList.join(', ')}.`;
+        const textToSay = `Para ${profile.name}, ${title.toLowerCase()}, necesitas los siguientes cuadernos: ${notebookList.join(', ')}.`;
         const result = await getAudioForText(textToSay);
 
         if(result.success && result.audio) {
@@ -58,10 +59,10 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     } finally {
         setIsGeneratingAudio(false);
     }
-  }, [isGeneratingAudio, toast]);
+  }, [isGeneratingAudio, toast, profile.name]);
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
-    if (!user) return;
+    if (!user || !profile) return;
 
     if (isRefresh) {
       setRefreshing(true);
@@ -70,9 +71,8 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     }
 
     try {
-      const scheduleRef = doc(db, 'schedules', user.uid);
-      const scheduleSnap = await getDoc(scheduleRef);
-      const scheduleData = scheduleSnap.data();
+      const profileDocRef = doc(db, 'users', user.uid, 'profiles', profile.id);
+      const profileDocSnap = await getDoc(profileDocRef);
 
       const determineAdviceDate = () => {
         const now = new Date();
@@ -100,7 +100,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         }
         else if (dayOfWeek === 0) { // Sunday
           targetDate.setDate(now.getDate() + 1);
-          title = 'Cuadernos para Mañana';
+          title = 'Cuadernos para el Lunes';
         }
         
         return { targetDate, title };
@@ -110,21 +110,30 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
       setAdviceDate(targetDate);
       setAdviceTitle(title);
       const dateString = targetDate.toISOString().split('T')[0];
+      
+      if (profileDocSnap.exists()) {
+        const profileData = profileDocSnap.data();
+        const schedule = profileData.schedule || {};
+        const cleanedSchedule = omitBy(schedule, (value) => !value);
 
-      if (scheduleSnap.exists() && scheduleData?.schedule && !isEmpty(omitBy(scheduleData.schedule, (value) => !value))) {
-        setScheduleExists(true);
-        const scheduleString = JSON.stringify(scheduleData.schedule);
-        const vacations = scheduleData.vacations || [];
-        const result = await getNotebookAdvice(scheduleString, dateString, vacations);
-        
-        if (result.success) {
-          setIsVacation(result.isVacation || false);
-          const newNotebooks = result.notebooks ? result.notebooks.split(',').map(n => n.trim()).filter(Boolean) : [];
-          setNotebooks(newNotebooks);
-
+        if (!isEmpty(cleanedSchedule)) {
+            setScheduleExists(true);
+            const scheduleString = JSON.stringify(schedule);
+            const vacations = profileData.vacations || [];
+            const result = await getNotebookAdvice(scheduleString, dateString, vacations, profile.name);
+            
+            if (result.success) {
+                setIsVacation(result.isVacation || false);
+                const newNotebooks = result.notebooks ? result.notebooks.split(',').map(n => n.trim()).filter(Boolean) : [];
+                setNotebooks(newNotebooks);
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+                setNotebooks([]);
+            }
         } else {
-          toast({ variant: 'destructive', title: 'Error', description: result.error });
-          setNotebooks([]);
+            setScheduleExists(false);
+            setNotebooks([]);
+            setIsVacation(false);
         }
       } else {
         setScheduleExists(false);
@@ -141,12 +150,19 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         setLoading(false);
       }
     }
-  }, [user, toast]);
+  }, [user, profile, toast]);
   
   useEffect(() => {
     fetchAdvice(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldRefresh]);
+  }, [profile]);
+
+  useEffect(() => {
+    if (user && profile) {
+      const userDocRef = doc(db, 'users', user.uid);
+      updateDoc(userDocRef, { lastSelectedProfileId: profile.id });
+    }
+  }, [user, profile]);
 
   useEffect(() => {
       // Logic for initial audio playback
@@ -171,7 +187,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !user) return;
+    if (!file || !user || !profile) return;
 
     setProcessingImage(true);
     toast({ title: 'Procesando imagen...', description: 'La IA está analizando tu horario. Esto puede tardar un momento.' });
@@ -184,10 +200,10 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
 
         if (result.success && result.schedule) {
             try {
-              const scheduleRef = doc(db, 'schedules', user.uid);
+              const profileDocRef = doc(db, 'users', user.uid, 'profiles', profile.id);
               const cleanedSchedule = omitBy(result.schedule, (value) => !value);
-              await setDoc(scheduleRef, { schedule: cleanedSchedule }, { merge: true });
-              toast({ title: '¡Horario guardado!', description: 'Tu horario ha sido guardado y analizado.' });
+              await setDoc(profileDocRef, { schedule: cleanedSchedule }, { merge: true });
+              toast({ title: '¡Horario guardado!', description: `El horario para ${profile.name} ha sido guardado.` });
               setHasPlayedInitialAudio(false); // Allow audio to play for new schedule
               fetchAdvice(true);
             } catch (error) {
@@ -219,8 +235,8 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         return (
             <div className="text-center p-6 border-2 border-dashed rounded-lg bg-card space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold">¡Hola! Te doy la bienvenida.</h3>
-                  <p className="text-muted-foreground font-medium">Para empezar, necesito conocer tu horario.</p>
+                  <h3 className="text-lg font-semibold">¡Hola! Para empezar con {profile.name}...</h3>
+                  <p className="text-muted-foreground font-medium">Necesito conocer su horario.</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <Button onClick={() => fileInputRef.current?.click()} disabled={processingImage} className="w-full sm:w-auto">
@@ -252,8 +268,8 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         return (
             <div className="text-center p-6 border-2 border-dashed rounded-lg bg-card">
                  <CalendarOff className="mx-auto h-10 w-10 text-primary mb-3" />
-                <p className="text-muted-foreground font-medium">¡Estás de vacaciones! No necesitas cuadernos.</p>
-                <p className="text-muted-foreground text-sm">Disfruta de tu tiempo libre.</p>
+                <p className="text-muted-foreground font-medium">¡{profile.name} está de vacaciones! No necesita cuadernos.</p>
+                <p className="text-muted-foreground text-sm">A disfrutar del tiempo libre.</p>
             </div>
         );
     }
@@ -286,9 +302,12 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
       <header className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
             <Backpack className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl sm:text-3xl font-bold font-headline">Mi Mochila Inteligente</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold font-headline">Mochila de {profile.name}</h1>
         </div>
         <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setView('profiles')} aria-label="Cambiar Perfil">
+                <Users className="h-5 w-5" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setView('settings')} aria-label="Configuración">
                 <Settings className="h-5 w-5" />
             </Button>
@@ -306,7 +325,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
                 <CalendarDays className="h-5 w-5 text-muted-foreground" />
                 {adviceTitle}
               </CardTitle>
-              <CardDescription>Esto es lo que necesitas empacar.</CardDescription>
+              <CardDescription>Esto es lo que {profile.name} necesita empacar.</CardDescription>
             </div>
             <div className="flex items-center gap-1">
               <Button variant="outline" size="icon" onClick={() => handlePlayAudio(notebooks, adviceTitle)} disabled={isGeneratingAudio || notebooks.length === 0 || loading} aria-label="Leer en voz alta">

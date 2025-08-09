@@ -3,13 +3,15 @@
 import { adviseDailyNotebooks } from '@/ai/flows/daily-notebook-advisor';
 import { organizeScheduleFromImage } from '@/ai/flows/organize-schedule-flow';
 import { textToSpeech } from '@/ai/flows/text-to-speech-flow';
+import { Profile } from './page';
 
-export async function getNotebookAdvice(schedule: string, date: string, vacations: string[] = []) {
+export async function getNotebookAdvice(schedule: string, date: string, vacations: string[] = [], profileName: string) {
   try {
     const result = await adviseDailyNotebooks({
       schedule,
       date,
       vacations,
+      profileName,
     });
     
     return { success: true, notebooks: result.notebooks, isVacation: result.isVacation };

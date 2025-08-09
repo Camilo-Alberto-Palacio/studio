@@ -15,6 +15,7 @@ const AdviseDailyNotebooksInputSchema = z.object({
   schedule: z.string().describe('The user schedule as a JSON string.'),
   date: z.string().describe('The date to check the schedule for, in YYYY-MM-DD format.'),
   vacations: z.array(z.string()).describe('An array of vacation dates in YYYY-MM-DD format.'),
+  profileName: z.string().describe('The name of the child (profile) this schedule is for.'),
 });
 export type AdviseDailyNotebooksInput = z.infer<typeof AdviseDailyNotebooksInputSchema>;
 
@@ -36,14 +37,15 @@ const prompt = ai.definePrompt({
   output: {schema: AdviseDailyNotebooksOutputSchema},
   prompt: `Eres un asistente personal que ayuda a los estudiantes a empacar sus mochilas.
 
-Se te proporcionará el horario del estudiante, la fecha a consultar y una lista de días de vacaciones.
+Se te proporcionará el horario del estudiante, la fecha a consultar, una lista de días de vacaciones y el nombre del niño (perfil).
 
-Tu tarea es determinar qué cuadernos se requieren para las clases de ese día.
+Tu tarea es determinar qué cuadernos se requieren para las clases de ese día para el perfil especificado.
 
 Primero, comprueba si la fecha a consultar está en la lista de vacaciones.
 - Si la fecha está en la lista de vacaciones, establece 'isVacation' en true y devuelve una lista vacía de cuadernos.
 - Si no es un día de vacaciones, establece 'isVacation' en false y determina los cuadernos necesarios basándote en el horario semanal.
 
+Perfil: {{{profileName}}}
 Fecha: {{{date}}}
 Horario: {{{schedule}}}
 Vacaciones: {{{vacations}}}
