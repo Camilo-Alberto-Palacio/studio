@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase/config';
 import { useAuth } from '@/hooks/use-auth';
@@ -177,7 +177,13 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   // Pre-load voices for speech synthesis
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.getVoices();
+      // This is a trick to get voices loaded on some browsers.
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          // voices loaded
+        };
+      }
     }
   }, []);
 
