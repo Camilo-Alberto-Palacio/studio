@@ -9,7 +9,9 @@ import wav from 'wav';
 import { googleAI } from '@genkit-ai/googleai';
 
 const TextToSpeechInputSchema = z.object({
-  text: z.string().describe('The text to convert to speech.'),
+  profileName: z.string().describe('The name of the profile.'),
+  adviceTitle: z.string().describe('The title of the advice message.'),
+  notebooks: z.array(z.string()).describe('The list of notebooks to read.'),
 });
 export type TextToSpeechInput = z.infer<typeof TextToSpeechInputSchema>;
 
@@ -55,7 +57,9 @@ const textToSpeechFlow = ai.defineFlow(
     inputSchema: TextToSpeechInputSchema,
     outputSchema: TextToSpeechOutputSchema,
   },
-  async ({ text }) => {
+  async ({ profileName, adviceTitle, notebooks }) => {
+    const text = `Para ${profileName}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
+    
     const { media } = await ai.generate({
       model: googleAI.model('gemini-2.5-flash-preview-tts'),
       config: {

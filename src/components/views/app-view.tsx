@@ -61,11 +61,15 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     }
   
     setIsSpeaking(true);
-    const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
-  
+    
     if (isMobile) {
       try {
-        const result = await getAudioForText(textToSay);
+        const result = await getAudioForText({ 
+          profileName: profile.name,
+          adviceTitle: adviceTitle,
+          notebooks: notebooks
+        });
+
         if (result.success && result.audioDataUri) {
           const audio = new Audio(result.audioDataUri);
           audioRef.current = audio;
@@ -84,6 +88,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         setIsSpeaking(false);
       }
     } else {
+      const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
       const utterance = new SpeechSynthesisUtterance(textToSay);
       utterance.lang = 'es-ES';
       utterance.onend = () => setIsSpeaking(false);
@@ -366,7 +371,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
               <CardDescription>Esto es lo que {profile.name} necesita empacar.</CardDescription>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" onClick={playAudio} disabled={notebooks.length === 0 || loading} aria-label="Leer en voz alta">
+              <Button variant="outline" size="icon" onClick={playAudio} disabled={notebooks.length === 0 || loading || isSpeaking} aria-label="Leer en voz alta">
                 {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
               </Button>
               <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">

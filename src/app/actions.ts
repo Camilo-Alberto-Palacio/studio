@@ -2,7 +2,7 @@
 
 import { adviseDailyNotebooks } from '@/ai/flows/daily-notebook-advisor';
 import { organizeScheduleFromImage } from '@/ai/flows/organize-schedule-flow';
-import { convertTextToSpeech } from '@/ai/flows/text-to-speech-flow';
+import { convertTextToSpeech, TextToSpeechInput } from '@/ai/flows/text-to-speech-flow';
 
 export async function getNotebookAdvice(schedule: string, date: string, vacations: string[] = [], profileName: string) {
   try {
@@ -30,12 +30,12 @@ export async function getScheduleFromImage(photoDataUri: string) {
     }
 }
 
-export async function getAudioForText(text: string) {
-    if (!text) {
+export async function getAudioForText(input: TextToSpeechInput) {
+    if (!input.notebooks || input.notebooks.length === 0) {
         return { success: false, error: 'No hay texto para leer.' };
     }
     try {
-        const result = await convertTextToSpeech({ text });
+        const result = await convertTextToSpeech(input);
         return { success: true, audioDataUri: result.audioDataUri };
     } catch (error) {
         console.error('Error converting text to speech:', error);
