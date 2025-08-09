@@ -32,10 +32,36 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const [adviceDate, setAdviceDate] = useState(new Date());
   const [adviceTitle, setAdviceTitle] = useState('Cuadernos para Hoy');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // State for robust speech synthesis
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechSynthesisVoices, setSpeechSynthesisVoices] = useState<SpeechSynthesisVoice[]>([]);
   const hasPlayedAuto = useRef(false);
 
-  
+  // Load voices when component mounts
+  useEffect(() => {
+    const loadVoices = () => {
+      const availableVoices = window.speechSynthesis.getVoices();
+      if (availableVoices.length > 0) {
+        setSpeechSynthesisVoices(availableVoices);
+      }
+    };
+
+    // The 'voiceschanged' event is crucial for mobile, especially Android
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    // Call it once to handle cases where voices are already loaded
+    loadVoices(); 
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+      // Ensure any ongoing speech is stopped when the component unmounts
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+
   const handlePlayAudio = useCallback(() => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
         toast({
@@ -52,15 +78,17 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         return;
     }
 
-    if (notebooks.length === 0) return;
+    if (notebooks.length === 0 || speechSynthesisVoices.length === 0) return;
 
     const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
     const utterance = new SpeechSynthesisUtterance(textToSay);
     
-    const voices = window.speechSynthesis.getVoices();
-    const spanishVoice = voices.find(voice => voice.lang.startsWith('es'));
+    // Explicitly select a Spanish voice for better reliability
+    const spanishVoice = speechSynthesisVoices.find(voice => voice.lang.startsWith('es'));
     if (spanishVoice) {
         utterance.voice = spanishVoice;
+    } else {
+        console.warn("No Spanish voice found, using default.");
     }
     
     utterance.onstart = () => setIsSpeaking(true);
@@ -70,13 +98,13 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         toast({
             variant: 'destructive',
             title: 'Error de audio',
-            description: 'No se pudo generar la narración.',
+            description: 'No se pudo generar la narración. Inténtalo de nuevo.',
         });
         setIsSpeaking(false);
     };
 
     window.speechSynthesis.speak(utterance);
-  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast]);
+  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast, speechSynthesisVoices]);
 
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
@@ -88,9 +116,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
       setLoading(true);
     }
     
-    // Reset auto-play flag on fetch
     hasPlayedAuto.current = false;
-    // Cancel any ongoing speech
     if (window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
@@ -102,29 +128,26 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
 
       const determineAdviceDate = () => {
         const now = new Date();
-        const dayOfWeek = now.getDay(); // Sunday - 0, Monday - 1, etc.
+        const dayOfWeek = now.getDay();
         const hour = now.getHours();
     
         let targetDate = new Date(now);
         let title = 'Cuadernos para Hoy';
     
         if (dayOfWeek >= 1 && dayOfWeek <= 4) { // Monday to Thursday
-          if (hour >= 15) { // After 3 PM, show tomorrow's schedule
+          if (hour >= 15) {
             targetDate.setDate(now.getDate() + 1);
             title = 'Cuadernos para Mañana';
           }
-        }
-        else if (dayOfWeek === 5) { // Friday
-          if (hour >= 15) { // After 3 PM on Friday, show Monday's schedule
+        } else if (dayOfWeek === 5) { // Friday
+          if (hour >= 15) {
             targetDate.setDate(now.getDate() + 3);
             title = 'Cuadernos para el Lunes';
           }
-        }
-        else if (dayOfWeek === 6) { // Saturday
+        } else if (dayOfWeek === 6) { // Saturday
           targetDate.setDate(now.getDate() + 2);
           title = 'Cuadernos para el Lunes';
-        }
-        else if (dayOfWeek === 0) { // Sunday
+        } else if (dayOfWeek === 0) { // Sunday
           targetDate.setDate(now.getDate() + 1);
           title = 'Cuadernos para el Lunes';
         }
@@ -184,22 +207,12 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   }, [profile]);
   
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      const voices = window.speechSynthesis.getVoices();
-      if (voices.length === 0) {
-        window.speechSynthesis.onvoiceschanged = () => {};
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    // Auto-play logic
-    if (!loading && notebooks.length > 0 && !isVacation && !hasPlayedAuto.current) {
+    // Auto-play logic, now safer because it depends on handlePlayAudio which waits for voices
+    if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedAuto.current && speechSynthesisVoices.length > 0) {
         handlePlayAudio();
         hasPlayedAuto.current = true;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, notebooks, isVacation]);
+  }, [loading, notebooks, isVacation, handlePlayAudio, speechSynthesisVoices]);
 
 
   const handleLogout = async () => {
@@ -358,7 +371,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
               <CardDescription>Esto es lo que {profile.name} necesita empacar.</CardDescription>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" onClick={handlePlayAudio} disabled={notebooks.length === 0 || loading} aria-label="Leer en voz alta">
+              <Button variant="outline" size="icon" onClick={handlePlayAudio} disabled={notebooks.length === 0 || loading || speechSynthesisVoices.length === 0} aria-label="Leer en voz alta">
                 {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
               </Button>
               <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
