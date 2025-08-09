@@ -162,6 +162,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
                         onChange={handleImageUpload}
                         className="hidden"
                         accept="image/*"
+                        capture="environment"
                     />
                     <Button variant="secondary" onClick={() => setView('settings')} className="w-full sm:w-auto">
                         <Settings className="mr-2 h-4 w-4" />
