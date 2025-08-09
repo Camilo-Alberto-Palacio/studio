@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save } from 'lucide-react';
-import { isEqual } from 'lodash';
+import { isEqual, omitBy } from 'lodash';
 
 type SettingsViewProps = {
   setView: (view: 'app' | 'settings') => void;
@@ -80,11 +80,15 @@ export default function SettingsView({ setView }: SettingsViewProps) {
       const scheduleToSave = Object.entries(schedule).reduce((acc, [day, subjects]) => {
           if(subjects && subjects.trim()) {
               acc[day] = subjects.split(',').map(s => s.trim()).filter(Boolean).join(', ');
+          } else {
+              acc[day] = '';
           }
           return acc;
       }, {} as Schedule);
 
-      await setDoc(scheduleRef, scheduleToSave, { merge: true });
+      const cleanedSchedule = omitBy(scheduleToSave, (value) => value === '');
+
+      await setDoc(scheduleRef, cleanedSchedule);
       toast({ title: '¡Éxito!', description: 'Tu horario ha sido guardado.' });
       setView('app');
     } catch (error: any) {
