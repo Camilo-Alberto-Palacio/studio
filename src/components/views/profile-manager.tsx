@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { db, generateId } from '@/lib/firebase/config';
-import { doc, setDoc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDoc, writeBatch, arrayUnion, updateDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -36,23 +36,22 @@ export default function ProfileManager({ profiles, onProfilesUpdate }: ProfileMa
     try {
         const userDocRef = doc(db, 'users', user.uid);
         const profileDocRef = doc(db, 'users', user.uid, 'profiles', newProfile.id);
-
         const userDocSnap = await getDoc(userDocRef);
 
         const batch = writeBatch(db);
 
+        // Ensure user document exists before trying to update it
+        if (!userDocSnap.exists()) {
+          batch.set(userDocRef, { profiles: [] }); // Create user doc with empty profiles array
+        }
+        
         // Create the profile subdocument
         batch.set(profileDocRef, { name: newProfile.name, schedule: {}, vacations: [] });
-
-        // Update the profiles array in the main user document
-        const existingProfiles = userDocSnap.exists() ? userDocSnap.data().profiles || [] : [];
-        const updatedProfiles = [...existingProfiles, {id: newProfile.id, name: newProfile.name}];
         
-        if(userDocSnap.exists()) {
-            batch.update(userDocRef, { profiles: updatedProfiles });
-        } else {
-            batch.set(userDocRef, { profiles: updatedProfiles });
-        }
+        // Atomically add the new profile to the 'profiles' array
+        batch.update(userDocRef, { 
+          profiles: arrayUnion({id: newProfile.id, name: newProfile.name}) 
+        });
 
         await batch.commit();
 
