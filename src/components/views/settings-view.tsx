@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save } from 'lucide-react';
+import { isEqual } from 'lodash';
 
 type SettingsViewProps = {
   setView: (view: 'app' | 'settings') => void;
@@ -23,16 +24,19 @@ type Schedule = {
     [key: string]: string;
 };
 
-export default function SettingsView({ setView }: SettingsViewProps) {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [schedule, setSchedule] = useState<Schedule>({
+const initialSchedule = {
     Monday: '',
     Tuesday: '',
     Wednesday: '',
     Thursday: '',
     Friday: '',
-  });
+};
+
+export default function SettingsView({ setView }: SettingsViewProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [schedule, setSchedule] = useState<Schedule>(initialSchedule);
+  const [originalSchedule, setOriginalSchedule] = useState<Schedule>(initialSchedule);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -47,8 +51,9 @@ export default function SettingsView({ setView }: SettingsViewProps) {
         const fullSchedule = internalDaysOfWeek.reduce((acc, day) => {
             acc[day] = existingSchedule[day] || '';
             return acc;
-        }, {} as Schedule)
+        }, {} as Schedule);
         setSchedule(fullSchedule);
+        setOriginalSchedule(fullSchedule);
       }
     } catch (error) {
       console.error(error);
@@ -73,13 +78,13 @@ export default function SettingsView({ setView }: SettingsViewProps) {
       const scheduleRef = doc(db, 'schedules', user.uid);
       
       const scheduleToSave = Object.entries(schedule).reduce((acc, [day, subjects]) => {
-          if(subjects.trim() !== '') {
-              acc[day] = subjects.trim();
+          if(subjects.trim()) {
+              acc[day] = subjects.split(',').map(s => s.trim()).filter(Boolean).join(', ');
           }
           return acc;
       }, {} as Schedule);
 
-      await setDoc(scheduleRef, scheduleToSave, { merge: true });
+      await setDoc(scheduleRef, scheduleToSave);
       toast({ title: '¡Éxito!', description: 'Tu horario ha sido guardado.' });
       setView('app');
     } catch (error: any) {
@@ -88,6 +93,8 @@ export default function SettingsView({ setView }: SettingsViewProps) {
       setSaving(false);
     }
   };
+
+  const hasChanges = !isEqual(schedule, originalSchedule);
 
   if (loading) {
       return (
@@ -141,7 +148,7 @@ export default function SettingsView({ setView }: SettingsViewProps) {
                             />
                         </div>
                     ))}
-                    <Button type="submit" disabled={saving} className="mt-8 bg-accent hover:bg-accent/90">
+                    <Button type="submit" disabled={saving || !hasChanges} className="mt-8 bg-accent hover:bg-accent/90">
                         <Save className="mr-2 h-4 w-4" />
                         {saving ? 'Guardando...' : 'Guardar Horario'}
                     </Button>
