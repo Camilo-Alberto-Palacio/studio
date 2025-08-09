@@ -68,6 +68,7 @@ export default function AppView({ setView, profile }: AppViewProps) {
       setRefreshing(true);
     } else {
       setLoading(true);
+      setHasPlayedInitialAudio(false); // Reset audio play state on profile change
     }
 
     try {
@@ -165,12 +166,12 @@ export default function AppView({ setView, profile }: AppViewProps) {
   }, [user, profile]);
 
   useEffect(() => {
-      // Logic for initial audio playback
-      if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedInitialAudio) {
-          handlePlayAudio(notebooks, adviceTitle);
-          setHasPlayedInitialAudio(true);
-      }
+    if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedInitialAudio) {
+      handlePlayAudio(notebooks, adviceTitle);
+      setHasPlayedInitialAudio(true);
+    }
   }, [loading, isVacation, notebooks, hasPlayedInitialAudio, adviceTitle, handlePlayAudio]);
+
 
   const handleLogout = async () => {
     try {
@@ -204,7 +205,6 @@ export default function AppView({ setView, profile }: AppViewProps) {
               const cleanedSchedule = omitBy(result.schedule, (value) => !value);
               await setDoc(profileDocRef, { schedule: cleanedSchedule }, { merge: true });
               toast({ title: '¡Horario guardado!', description: `El horario para ${profile.name} ha sido guardado.` });
-              setHasPlayedInitialAudio(false); // Allow audio to play for new schedule
               fetchAdvice(true);
             } catch (error) {
               toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar el horario extraído.' });
@@ -253,7 +253,6 @@ export default function AppView({ setView, profile }: AppViewProps) {
                         onChange={handleImageUpload}
                         className="hidden"
                         accept="image/*"
-                        capture="environment"
                     />
                     <Button variant="secondary" onClick={() => setView('settings')} className="w-full sm:w-auto">
                         <Settings className="mr-2 h-4 w-4" />

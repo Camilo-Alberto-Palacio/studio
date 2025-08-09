@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
-import { db, generateId } from '@/lib/firebase/config';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -54,12 +54,12 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (profiles.length > 0) {
-      setSelectedProfileId(profiles[0].id);
-    } else {
+    if (initialProfiles.length > 0 && !selectedProfileId) {
+      setSelectedProfileId(initialProfiles[0].id);
+    } else if (initialProfiles.length === 0) {
       setLoading(false);
     }
-  }, [profiles]);
+  }, [initialProfiles, selectedProfileId]);
   
   const fetchProfileData = useCallback(async () => {
     if (!user || !selectedProfileId) {
@@ -68,6 +68,7 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
         setVacations([]);
         setOriginalSchedule(initialSchedule);
         setOriginalVacations([]);
+        setLoading(false);
       }
       return;
     };
@@ -156,40 +157,32 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
   };
 
   const onProfilesUpdate = (newProfiles: Profile[]) => {
+    const isNewProfileAdded = newProfiles.length > profiles.length;
     setProfiles(newProfiles);
-    if (!newProfiles.some(p => p.id === selectedProfileId)) {
+    
+    if (isNewProfileAdded) {
+      setSelectedProfileId(newProfiles[newProfiles.length - 1].id);
+    } else if (!newProfiles.some(p => p.id === selectedProfileId)) {
       setSelectedProfileId(newProfiles.length > 0 ? newProfiles[0].id : null);
     }
   }
 
   const hasChanges = selectedProfileId && (!isEqual(schedule, originalSchedule) || !isEqual(vacations.map(d => d.toISOString().split('T')[0]), originalVacations.map(d => d.toISOString().split('T')[0])));
   
-  const renderSkeleton = () => (
-    <div className="max-w-2xl mx-auto">
-        <Button variant="outline" disabled className="mb-6">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver al Panel
-        </Button>
-        <Card>
-            <CardHeader>
-                <Skeleton className="h-7 w-48 mb-2" />
-                <Skeleton className="h-4 w-full" />
-            </CardHeader>
-            <CardContent className="space-y-6 pt-6">
-                {daysOfWeek.slice(0, 5).map(day => (
-                    <div key={day} className="space-y-2">
-                       <Skeleton className="h-6 w-24" />
-                       <Skeleton className="h-10 w-full" />
-                    </div>
-                ))}
-                <div className="pt-4">
-                    <Skeleton className="h-7 w-40 mb-2" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-64 w-full mt-2" />
-                </div>
-                <Skeleton className="h-10 w-36 mt-8" />
-            </CardContent>
-        </Card>
+  const renderScheduleSkeleton = () => (
+    <div className="space-y-6 pt-6">
+        {daysOfWeek.slice(0, 5).map(day => (
+            <div key={day} className="space-y-2">
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+        ))}
+        <div className="pt-4">
+            <Skeleton className="h-7 w-40 mb-2" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-64 w-full mt-2" />
+        </div>
+        <Skeleton className="h-10 w-36 mt-8" />
     </div>
   );
 
@@ -226,7 +219,7 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
                             </Select>
                         </div>
 
-                        {loading ? renderSkeleton() : (
+                        {loading ? renderScheduleSkeleton() : (
                             <>
                                 <div>
                                     <h3 className="text-lg font-medium mb-4">Horario Semanal</h3>
