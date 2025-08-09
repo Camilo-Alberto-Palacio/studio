@@ -32,19 +32,13 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
   
-  const adviceTitleRef = useRef(adviceTitle);
-  useEffect(() => {
-    adviceTitleRef.current = adviceTitle;
-  }, [adviceTitle]);
-
-  const handlePlayAudio = useCallback(async (notebookList: string[]) => {
+  const handlePlayAudio = useCallback(async (notebookList: string[], title: string) => {
     if (isGeneratingAudio || notebookList.length === 0) return;
     
     setIsGeneratingAudio(true);
     try {
-        const textToSay = `Para ${adviceTitleRef.current.split(' ').slice(2).join(' ')}, necesitas los siguientes cuadernos: ${notebookList.join(', ')}.`;
+        const textToSay = `Para ${title.split(' ').slice(2).join(' ')}, necesitas los siguientes cuadernos: ${notebookList.join(', ')}.`;
         const result = await getAudioForText(textToSay);
 
         if(result.success && result.audio) {
@@ -57,15 +51,15 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error(error);
-        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo generar la narración.' });
+        toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo generar la narración.' });
     } finally {
         setIsGeneratingAudio(false);
     }
   }, [isGeneratingAudio, toast]);
 
-  const fetchAdvice = useCallback(async (isRefresh = false) => {
+  const fetchAdvice = useCallback(async (isRefresh = false, isFirstLoad = false) => {
     if (!user) return;
 
     if (isRefresh) {
@@ -108,12 +102,12 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
           title = 'Cuadernos para Mañana';
         }
         
-        setAdviceDate(targetDate);
-        setAdviceTitle(title);
-        return targetDate;
+        return { targetDate, title };
       };
 
-      const targetDate = determineAdviceDate();
+      const { targetDate, title } = determineAdviceDate();
+      setAdviceDate(targetDate);
+      setAdviceTitle(title);
       const dateString = targetDate.toISOString().split('T')[0];
 
       if (scheduleSnap.exists() && scheduleData?.schedule && !isEmpty(omitBy(scheduleData.schedule, (value) => !value))) {
@@ -128,7 +122,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
           setNotebooks(newNotebooks);
           
           if (isFirstLoad && newNotebooks.length > 0 && !result.isVacation) {
-            handlePlayAudio(newNotebooks);
+            handlePlayAudio(newNotebooks, title);
           }
 
         } else {
@@ -149,14 +143,11 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
       } else {
         setLoading(false);
       }
-      if (isFirstLoad) {
-        setIsFirstLoad(false);
-      }
     }
-  }, [user, toast, isFirstLoad, handlePlayAudio]);
+  }, [user, toast, handlePlayAudio]);
 
   useEffect(() => {
-    fetchAdvice(false);
+    fetchAdvice(false, true); // Pass true for isFirstLoad on initial mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRefresh]);
 
@@ -192,8 +183,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
               const cleanedSchedule = omitBy(result.schedule, (value) => !value);
               await setDoc(scheduleRef, { schedule: cleanedSchedule }, { merge: true });
               toast({ title: '¡Horario guardado!', description: 'Tu horario ha sido guardado y analizado.' });
-              setIsFirstLoad(true); // Allow autoplay on new schedule
-              fetchAdvice(true);
+              fetchAdvice(true, true); // Allow autoplay on new schedule
             } catch (error) {
               toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar el horario extraído.' });
             }
@@ -313,10 +303,10 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
               <CardDescription>Esto es lo que necesitas empacar.</CardDescription>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" onClick={() => handlePlayAudio(notebooks)} disabled={isGeneratingAudio || notebooks.length === 0 || loading} aria-label="Leer en voz alta">
+              <Button variant="outline" size="icon" onClick={() => handlePlayAudio(notebooks, adviceTitle)} disabled={isGeneratingAudio || notebooks.length === 0 || loading} aria-label="Leer en voz alta">
                 {isGeneratingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
               </Button>
-              <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
+              <Button variant="outline" size="icon" onClick={() => fetchAdvice(true, false)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               </Button>
             </div>
