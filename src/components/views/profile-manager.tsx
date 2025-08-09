@@ -28,11 +28,23 @@ export default function ProfileManager({ profiles, onProfilesUpdate }: ProfileMa
 
   const handleAddProfile = async () => {
     if (!user || !newProfileName.trim()) return;
+    
+    const trimmedName = newProfileName.trim();
+
+    if (profiles.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
+        toast({
+            variant: 'destructive',
+            title: 'Perfil duplicado',
+            description: `Ya existe un perfil con el nombre "${trimmedName}".`,
+        });
+        return;
+    }
+
 
     setIsAdding(true);
     const newProfile: Profile = {
       id: generateId(`users/${user.uid}/profiles`),
-      name: newProfileName.trim(),
+      name: trimmedName,
     };
 
     try {
