@@ -33,7 +33,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const [adviceTitle, setAdviceTitle] = useState('Cuadernos para Hoy');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const isSpeakingRef = useRef(false);
   const [speechSynthesisVoices, setSpeechSynthesisVoices] = useState<SpeechSynthesisVoice[]>([]);
   const hasPlayedAuto = useRef(false);
 
@@ -66,9 +66,9 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
       return;
     }
 
-    if (isSpeaking) {
+    if (isSpeakingRef.current) {
         window.speechSynthesis.cancel();
-        setIsSpeaking(false);
+        isSpeakingRef.current = false;
         return;
     }
 
@@ -84,8 +84,8 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         console.warn("No Spanish voice found, using default.");
     }
     
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
+    utterance.onstart = () => { isSpeakingRef.current = true };
+    utterance.onend = () => { isSpeakingRef.current = false };
     utterance.onerror = (event) => {
         console.error('SpeechSynthesis Error', event);
         toast({
@@ -93,11 +93,11 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
             title: 'Error de audio',
             description: 'No se pudo generar la narración. Inténtalo de nuevo.',
         });
-        setIsSpeaking(false);
+        isSpeakingRef.current = false;
     };
 
     window.speechSynthesis.speak(utterance);
-  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast, speechSynthesisVoices]);
+  }, [notebooks, profile.name, adviceTitle, toast, speechSynthesisVoices]);
 
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
@@ -112,7 +112,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     hasPlayedAuto.current = false;
     if (window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
-      setIsSpeaking(false);
+      isSpeakingRef.current = false;
     }
 
     try {
@@ -364,7 +364,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
             </div>
             <div className="flex items-center gap-1">
               <Button variant="outline" size="icon" onClick={playAudio} disabled={notebooks.length === 0 || loading || speechSynthesisVoices.length === 0} aria-label="Leer en voz alta">
-                {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+                {isSpeakingRef.current ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
               </Button>
               <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
