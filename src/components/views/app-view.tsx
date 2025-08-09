@@ -23,12 +23,16 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const [notebooks, setNotebooks] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [scheduleExists, setScheduleExists] = useState(false);
+  const [scheduleExists, setScheduleExists] = useState(true);
 
-  const fetchAdvice = useCallback(async () => {
+  const fetchAdvice = useCallback(async (isRefresh = false) => {
     if (!user) return;
-    if (!refreshing) setLoading(true);
-    setRefreshing(true);
+
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
 
     try {
       const scheduleRef = doc(db, 'schedules', user.uid);
@@ -54,13 +58,16 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo obtener tu horario y recomendaciones.' });
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
-  }, [user, toast, refreshing]);
+  }, [user, toast]);
 
   useEffect(() => {
-    fetchAdvice();
+    fetchAdvice(false);
   }, [fetchAdvice, shouldRefresh]);
 
   const handleLogout = async () => {
@@ -131,8 +138,8 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
               <CardTitle>Cuadernos para Mañana</CardTitle>
               <CardDescription>Esto es lo que necesitas empacar para tus clases.</CardDescription>
             </div>
-            <Button variant="outline" size="icon" onClick={() => fetchAdvice()} disabled={refreshing || loading} aria-label="Refrescar recomendaciones">
-              <RefreshCw className={`h-4 w-4 ${(refreshing || loading) ? 'animate-spin' : ''}`} />
+            <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading} aria-label="Refrescar recomendaciones">
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </CardHeader>
