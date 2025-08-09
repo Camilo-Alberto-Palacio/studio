@@ -14,9 +14,10 @@ import { Book, Settings, LogOut, Backpack, RefreshCw } from 'lucide-react';
 
 type AppViewProps = {
   setView: (view: 'app' | 'settings') => void;
+  shouldRefresh?: boolean;
 };
 
-export default function AppView({ setView }: AppViewProps) {
+export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [notebooks, setNotebooks] = useState<string>('');
@@ -26,8 +27,8 @@ export default function AppView({ setView }: AppViewProps) {
 
   const fetchAdvice = useCallback(async () => {
     if (!user) return;
+    if (!refreshing) setLoading(true);
     setRefreshing(true);
-    setLoading(true);
 
     try {
       const scheduleRef = doc(db, 'schedules', user.uid);
@@ -56,11 +57,11 @@ export default function AppView({ setView }: AppViewProps) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user, toast]);
+  }, [user, toast, refreshing]);
 
   useEffect(() => {
     fetchAdvice();
-  }, [fetchAdvice]);
+  }, [fetchAdvice, shouldRefresh]);
 
   const handleLogout = async () => {
     try {
@@ -130,8 +131,8 @@ export default function AppView({ setView }: AppViewProps) {
               <CardTitle>Cuadernos para Mañana</CardTitle>
               <CardDescription>Esto es lo que necesitas empacar para tus clases.</CardDescription>
             </div>
-            <Button variant="outline" size="icon" onClick={fetchAdvice} disabled={refreshing} aria-label="Refrescar recomendaciones">
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <Button variant="outline" size="icon" onClick={() => fetchAdvice()} disabled={refreshing || loading} aria-label="Refrescar recomendaciones">
+              <RefreshCw className={`h-4 w-4 ${(refreshing || loading) ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </CardHeader>

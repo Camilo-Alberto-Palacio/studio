@@ -74,12 +74,12 @@ export default function SettingsView({ setView }: SettingsViewProps) {
       
       const scheduleToSave = Object.entries(schedule).reduce((acc, [day, subjects]) => {
           if(subjects.trim() !== '') {
-              acc[day] = subjects;
+              acc[day] = subjects.trim();
           }
           return acc;
       }, {} as Schedule);
 
-      await setDoc(scheduleRef, scheduleToSave);
+      await setDoc(scheduleRef, scheduleToSave, { merge: true });
       toast({ title: '¡Éxito!', description: 'Tu horario ha sido guardado.' });
       setView('app');
     } catch (error: any) {
@@ -92,7 +92,10 @@ export default function SettingsView({ setView }: SettingsViewProps) {
   if (loading) {
       return (
         <div className="max-w-2xl mx-auto">
-            <Skeleton className="h-10 w-40 mb-6" />
+            <Button variant="outline" disabled className="mb-6">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al Panel
+            </Button>
             <Card>
                 <CardHeader>
                     <Skeleton className="h-7 w-48 mb-2" />
@@ -122,7 +125,7 @@ export default function SettingsView({ setView }: SettingsViewProps) {
             <CardHeader>
                 <CardTitle>Configura tu Horario</CardTitle>
                 <CardDescription>
-                    Ingresa tus asignaturas o libros necesarios para cada día. Por ejemplo: "Matemáticas, Cuaderno de Historia, Libro de Biología".
+                    Ingresa tus asignaturas o libros necesarios para cada día, separados por comas.
                 </CardDescription>
             </CardHeader>
             <CardContent>

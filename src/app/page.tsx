@@ -12,6 +12,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 function AppContent() {
   const { user, loading } = useAuth();
   const [currentView, setCurrentView] = useState<'app' | 'settings'>('app');
+  const [shouldRefresh, setShouldRefresh] = useState(false);
+
+  const handleSetView = (view: 'app' | 'settings') => {
+    if (view === 'app') {
+      setShouldRefresh(prev => !prev);
+    }
+    setCurrentView(view);
+  }
 
   if (loading) {
     return (
@@ -44,9 +52,9 @@ function AppContent() {
       ) : (
         <div className="p-4 sm:p-6 md:p-8">
           {currentView === 'app' ? (
-            <AppView setView={setCurrentView} />
+            <AppView setView={handleSetView} shouldRefresh={shouldRefresh} />
           ) : (
-            <SettingsView setView={setCurrentView} />
+            <SettingsView setView={handleSetView} />
           )}
         </div>
       )}
