@@ -8,16 +8,15 @@ config();
 
 // This will read the configuration from the .env file
 // and gracefully handle cases where it might be missing.
-let firebaseConfig = {};
-try {
-  if (process.env.NEXT_PUBLIC_FIREBASE_CONFIG) {
-    firebaseConfig = JSON.parse(process.env.NEXT_PUBLIC_FIREBASE_CONFIG);
-  } else {
-    console.warn("Firebase config is missing from environment variables.");
-  }
-} catch (error) {
-    console.error("Could not parse Firebase config:", error);
-}
+const firebaseConfig = {
+    "projectId": "smartbackpack-planner",
+    "appId": "1:313960103405:web:18db10f2f21c14656dbbe4",
+    "storageBucket": "smartbackpack-planner.firebasestorage.app",
+    "apiKey": "AIzaSyD14Kv8X41hCidDL8Z9dNnE0GQjIGr5eRc",
+    "authDomain": "smartbackpack-planner.firebaseapp.com",
+    "measurementId": "",
+    "messagingSenderId": "313960103405"
+};
 
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
