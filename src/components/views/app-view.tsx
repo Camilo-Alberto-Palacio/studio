@@ -5,7 +5,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase/config';
 import { useAuth } from '@/hooks/use-auth';
-import { getNotebookAdvice, getScheduleFromImage } from '@/app/actions';
+import { getNotebookAdvice, getScheduleFromImage, getAudioForText } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,71 +33,51 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const [adviceTitle, setAdviceTitle] = useState('Cuadernos para Hoy');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const isSpeakingRef = useRef(false);
-  const [speechSynthesisVoices, setSpeechSynthesisVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasPlayedAuto = useRef(false);
 
-  useEffect(() => {
-    const loadVoices = () => {
-      const availableVoices = window.speechSynthesis.getVoices();
-      if (availableVoices.length > 0) {
-        setSpeechSynthesisVoices(availableVoices);
-      }
-    };
 
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-    loadVoices(); 
-
-    return () => {
-      window.speechSynthesis.onvoiceschanged = null;
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
-
-  const playAudio = useCallback(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      toast({
-          variant: 'destructive',
-          title: 'Audio no soportado',
-          description: 'Tu navegador no soporta la síntesis de voz.',
-      });
-      return;
-    }
-
-    if (isSpeakingRef.current) {
-        window.speechSynthesis.cancel();
-        isSpeakingRef.current = false;
+  const handlePlayAudio = useCallback(async (isAutoPlay = false) => {
+    if (isSpeaking) {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+        }
+        setIsSpeaking(false);
         return;
     }
 
-    if (notebooks.length === 0 || speechSynthesisVoices.length === 0) return;
-
-    const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
-    const utterance = new SpeechSynthesisUtterance(textToSay);
-    
-    const spanishVoice = speechSynthesisVoices.find(voice => voice.lang.startsWith('es'));
-    if (spanishVoice) {
-        utterance.voice = spanishVoice;
-    } else {
-        console.warn("No Spanish voice found, using default.");
+    if (notebooks.length === 0) {
+        if (!isAutoPlay) {
+            toast({ title: 'Nada para leer', description: 'No hay cuadernos en la lista para leer en voz alta.' });
+        }
+        return;
     }
-    
-    utterance.onstart = () => { isSpeakingRef.current = true };
-    utterance.onend = () => { isSpeakingRef.current = false };
-    utterance.onerror = (event) => {
-        console.error('SpeechSynthesis Error', event);
+
+    setIsSpeaking(true);
+    const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
+
+    try {
+        const result = await getAudioForText(textToSay);
+        if (result.success && result.audioDataUri) {
+            if (audioRef.current) {
+                audioRef.current.src = result.audioDataUri;
+                await audioRef.current.play();
+            }
+        } else {
+            throw new Error(result.error || 'No se pudo generar el audio.');
+        }
+    } catch (error: any) {
+        console.error('Speech Error', error);
         toast({
             variant: 'destructive',
             title: 'Error de audio',
             description: 'No se pudo generar la narración. Inténtalo de nuevo.',
         });
-        isSpeakingRef.current = false;
-    };
-
-    window.speechSynthesis.speak(utterance);
-  }, [notebooks, profile.name, adviceTitle, toast, speechSynthesisVoices]);
+        setIsSpeaking(false);
+    }
+  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast]);
 
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
@@ -110,9 +90,12 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     }
     
     hasPlayedAuto.current = false;
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-      isSpeakingRef.current = false;
+    if (isSpeaking) {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+        }
+        setIsSpeaking(false);
     }
 
     try {
@@ -192,7 +175,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         setLoading(false);
       }
     }
-  }, [user, profile, toast]);
+  }, [user, profile, toast, isSpeaking]);
   
   useEffect(() => {
     fetchAdvice(false);
@@ -200,12 +183,33 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   }, [profile]);
   
   useEffect(() => {
-    if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedAuto.current && speechSynthesisVoices.length > 0) {
-        playAudio();
+    if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedAuto.current) {
+        handlePlayAudio(true);
         hasPlayedAuto.current = true;
     }
-  }, [loading, notebooks, isVacation, playAudio, speechSynthesisVoices]);
+  }, [loading, notebooks, isVacation, handlePlayAudio]);
 
+  useEffect(() => {
+    // Setup audio element and its event listeners
+    const audio = new Audio();
+    audioRef.current = audio;
+
+    const handleAudioEnd = () => setIsSpeaking(false);
+    audio.addEventListener('ended', handleAudioEnd);
+    audio.addEventListener('pause', handleAudioEnd); // Also consider speaking finished if paused manually
+    audio.addEventListener('error', handleAudioEnd);
+
+    return () => {
+      // Cleanup
+      if (audioRef.current) {
+        audioRef.current.removeEventListener('ended', handleAudioEnd);
+        audioRef.current.removeEventListener('pause', handleAudioEnd);
+        audioRef.current.removeEventListener('error', handleAudioEnd);
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -363,8 +367,8 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
               <CardDescription>Esto es lo que {profile.name} necesita empacar.</CardDescription>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" onClick={playAudio} disabled={notebooks.length === 0 || loading || speechSynthesisVoices.length === 0} aria-label="Leer en voz alta">
-                {isSpeakingRef.current ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+              <Button variant="outline" size="icon" onClick={() => handlePlayAudio(false)} disabled={notebooks.length === 0 || loading} aria-label="Leer en voz alta">
+                {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
               </Button>
               <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
