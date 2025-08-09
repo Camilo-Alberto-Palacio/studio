@@ -3,7 +3,7 @@
 import { Profile } from '@/app/page';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { User, Users, Settings } from 'lucide-react';
+import { User, Users, PlusCircle } from 'lucide-react';
 
 type ProfileSelectorViewProps = {
   profiles: Profile[];
@@ -12,28 +12,7 @@ type ProfileSelectorViewProps = {
 };
 
 export default function ProfileSelectorView({ profiles, onProfileSelect, setView }: ProfileSelectorViewProps) {
-  if (profiles.length === 0) {
-    return (
-        <div className="flex min-h-[60vh] flex-col items-center justify-center bg-background p-4">
-            <Card className="w-full max-w-md text-center">
-                <CardHeader>
-                    <Users className="mx-auto h-12 w-12 text-primary mb-4" />
-                    <CardTitle>¡Bienvenido!</CardTitle>
-                    <CardDescription>
-                        Parece que no tienes ningún perfil. Crea uno para empezar a organizar tu mochila inteligente.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button onClick={() => setView('settings')}>
-                        <Settings className="mr-2 h-4 w-4" />
-                        Ir a Configuración para Crear Perfil
-                    </Button>
-                </CardContent>
-            </Card>
-        </div>
-    );
-  }
-
+  
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
@@ -41,7 +20,7 @@ export default function ProfileSelectorView({ profiles, onProfileSelect, setView
                 <Users className="mx-auto h-12 w-12 text-primary mb-4" />
                 <CardTitle>¿Para quién es la mochila de hoy?</CardTitle>
                 <CardDescription>
-                    Selecciona un perfil para ver los cuadernos que necesita.
+                    Selecciona un perfil para ver sus útiles o añade uno nuevo.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -57,6 +36,14 @@ export default function ProfileSelectorView({ profiles, onProfileSelect, setView
                             {profile.name}
                         </Button>
                     ))}
+                     <Button
+                        variant="secondary"
+                        className="w-full justify-start h-14 text-lg"
+                        onClick={() => setView('settings')}
+                    >
+                        <PlusCircle className="mr-4 h-6 w-6" />
+                        Añadir un nuevo perfil
+                    </Button>
                 </div>
             </CardContent>
         </Card>

@@ -9,7 +9,7 @@ import SettingsView from '@/components/views/settings-view';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import ProfileSelectorView from '@/components/views/profile-selector-view';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 
 export type Profile = {
@@ -37,26 +37,8 @@ function AppContent() {
         const userData = userDocSnap.data();
         const userProfiles = userData.profiles || [];
         setProfiles(userProfiles);
-        
-        if (userProfiles.length === 1) {
-          setSelectedProfile(userProfiles[0]);
-          setCurrentView('app');
-        } else if (userProfiles.length > 1) {
-          const lastProfileId = userData.lastSelectedProfileId;
-          const lastProfile = userProfiles.find((p: Profile) => p.id === lastProfileId);
-          if(lastProfile) {
-            setSelectedProfile(lastProfile);
-            setCurrentView('app');
-          } else {
-            setCurrentView('profiles');
-          }
-        } else {
-          setCurrentView('settings'); // No profiles, go to settings to create one
-        }
-      } else {
-        // No user doc, probably a new user
-        setCurrentView('settings');
       }
+      setCurrentView('profiles'); // Always start at profile selector
       setProfilesLoading(false);
     }
     fetchProfiles();
@@ -66,25 +48,43 @@ function AppContent() {
     setCurrentView(view);
   }
 
-  const handleProfileSelected = (profile: Profile) => {
+  const handleProfileSelected = async (profile: Profile) => {
     setSelectedProfile(profile);
+    if (user) {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        await updateDoc(userDocRef, { lastSelectedProfileId: profile.id });
+      } catch (e) {
+        // User doc might not exist yet, it will be created if they save settings.
+        console.log("Could not update lastSelectedProfileId, user doc may not exist yet.");
+      }
+    }
     setCurrentView('app');
   };
   
   const handleSettingsSaved = async () => {
     // Refetch profiles after saving settings
     if (!user) return;
+    setProfilesLoading(true);
     const userDocRef = doc(db, 'users', user.uid);
     const userDocSnap = await getDoc(userDocRef);
      if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
         const userProfiles = userData.profiles || [];
         setProfiles(userProfiles);
-        if (userProfiles.length > 0 && !selectedProfile) {
-          setSelectedProfile(userProfiles[0]);
+        // If a profile was being edited, we might need to update it
+        if (selectedProfile) {
+          const updatedSelected = userProfiles.find((p: Profile) => p.id === selectedProfile.id);
+          setSelectedProfile(updatedSelected || null);
         }
      }
-    setCurrentView('app');
+    setCurrentView('profiles'); // Go back to profile selection after saving settings.
+    setProfilesLoading(false);
+  }
+
+  const handleGoToProfiles = () => {
+    setSelectedProfile(null);
+    setCurrentView('profiles');
   }
 
   const LoadingSkeleton = () => (
@@ -95,14 +95,8 @@ function AppContent() {
           <Skeleton className="h-4 w-1/2" />
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-1/4" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-1/4" />
-            <Skeleton className="h-10 w-full" />
-          </div>
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
           <Skeleton className="h-10 w-full mt-2" />
         </CardContent>
       </Card>
@@ -120,7 +114,7 @@ function AppContent() {
       ) : (
         <div className="p-4 sm:p-6 md:p-8">
           {currentView === 'app' && selectedProfile ? (
-            <AppView setView={handleSetView} profile={selectedProfile} />
+            <AppView setView={handleSetView} profile={selectedProfile} onProfileChange={handleGoToProfiles} />
           ) : currentView === 'settings' ? (
             <SettingsView setView={handleSetView} onSettingsSaved={handleSettingsSaved} profiles={profiles} />
           ) : (

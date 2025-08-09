@@ -17,9 +17,10 @@ import { Profile } from '@/app/page';
 type AppViewProps = {
   setView: (view: 'app' | 'settings' | 'profiles') => void;
   profile: Profile;
+  onProfileChange: () => void;
 };
 
-export default function AppView({ setView, profile }: AppViewProps) {
+export default function AppView({ setView, profile, onProfileChange }: AppViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [notebooks, setNotebooks] = useState<string[]>([]);
@@ -51,11 +52,11 @@ export default function AppView({ setView, profile }: AppViewProps) {
             audioRef.current = audio;
             audio.play();
         } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            toast({ variant: 'destructive', title: 'Error de audio', description: result.error });
         }
     } catch (error: any) {
         console.error(error);
-        toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo generar la narración.' });
+        toast({ variant: 'destructive', title: 'Error de audio', description: error.message || 'No se pudo generar la narración.' });
     } finally {
         setIsGeneratingAudio(false);
     }
@@ -158,12 +159,6 @@ export default function AppView({ setView, profile }: AppViewProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
-  useEffect(() => {
-    if (user && profile) {
-      const userDocRef = doc(db, 'users', user.uid);
-      updateDoc(userDocRef, { lastSelectedProfileId: profile.id });
-    }
-  }, [user, profile]);
 
   useEffect(() => {
     if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedInitialAudio) {
@@ -304,7 +299,7 @@ export default function AppView({ setView, profile }: AppViewProps) {
             <h1 className="text-2xl sm:text-3xl font-bold font-headline">Mochila de {profile.name}</h1>
         </div>
         <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={() => setView('profiles')} aria-label="Cambiar Perfil">
+            <Button variant="ghost" size="icon" onClick={onProfileChange} aria-label="Cambiar Perfil">
                 <Users className="h-5 w-5" />
             </Button>
             <Button variant="ghost" size="icon" onClick={() => setView('settings')} aria-label="Configuración">

@@ -54,22 +54,24 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (initialProfiles.length > 0 && !selectedProfileId) {
+    // If there's no selected profile but there are profiles, select the first one.
+    // This happens when navigating directly to settings.
+    if (!selectedProfileId && initialProfiles.length > 0) {
       setSelectedProfileId(initialProfiles[0].id);
-    } else if (initialProfiles.length === 0) {
-      setLoading(false);
+    } else if (JSON.stringify(profiles) !== JSON.stringify(initialProfiles)) {
+       // Keep local state in sync with props
+      setProfiles(initialProfiles);
     }
-  }, [initialProfiles, selectedProfileId]);
+  }, [initialProfiles, selectedProfileId, profiles]);
   
   const fetchProfileData = useCallback(async () => {
     if (!user || !selectedProfileId) {
-      if (!selectedProfileId) {
-        setSchedule(initialSchedule);
-        setVacations([]);
-        setOriginalSchedule(initialSchedule);
-        setOriginalVacations([]);
-        setLoading(false);
-      }
+      // If no profile is selected (e.g., all were deleted), clear the forms.
+      setSchedule(initialSchedule);
+      setVacations([]);
+      setOriginalSchedule(initialSchedule);
+      setOriginalVacations([]);
+      setLoading(false);
       return;
     };
 
@@ -97,6 +99,7 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
         setVacations(existingVacations);
         setOriginalVacations(existingVacations);
       } else {
+        // This can happen if a profile was just created but not yet saved.
         setSchedule(initialSchedule);
         setOriginalSchedule(initialSchedule);
         setVacations([]);
@@ -147,7 +150,7 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
       toast({ title: '¡Éxito!', description: `El horario para ${profiles.find(p => p.id === selectedProfileId)?.name} ha sido guardado.` });
       setOriginalSchedule(scheduleToSave);
       setOriginalVacations(vacations);
-      onSettingsSaved();
+      onSettingsSaved(); // This will refetch profiles and navigate back to the selector
 
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: `No se pudo guardar: ${error.message}` });
@@ -161,8 +164,10 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
     setProfiles(newProfiles);
     
     if (isNewProfileAdded) {
+      // If a new profile was added, select it immediately.
       setSelectedProfileId(newProfiles[newProfiles.length - 1].id);
     } else if (!newProfiles.some(p => p.id === selectedProfileId)) {
+      // If the currently selected profile was deleted, select the first one, or none.
       setSelectedProfileId(newProfiles.length > 0 ? newProfiles[0].id : null);
     }
   }
@@ -188,9 +193,9 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
 
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in-50">
-        <Button variant="outline" onClick={() => setView('app')} className="mb-6">
+        <Button variant="outline" onClick={() => setView('profiles')} className="mb-6">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver al Panel
+            Volver a Perfiles
         </Button>
         
         <ProfileManager profiles={profiles} onProfilesUpdate={onProfilesUpdate} />
@@ -206,7 +211,7 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
                 <CardContent>
                     <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-8">
                         <div>
-                            <Label htmlFor='profile-select' className="text-base font-medium">Perfil</Label>
+                            <Label htmlFor='profile-select' className="text-base font-medium">Perfil Seleccionado</Label>
                              <Select value={selectedProfileId || ''} onValueChange={setSelectedProfileId}>
                                 <SelectTrigger id="profile-select" className="mt-2">
                                     <SelectValue placeholder="Selecciona un perfil..." />
@@ -267,7 +272,7 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
                 <CardHeader>
                     <CardTitle>Crea tu Primer Perfil</CardTitle>
                     <CardDescription>
-                        Para empezar, añade un perfil para tu primer niño. Haz clic en "Añadir Perfil" arriba.
+                        Para empezar, añade un perfil para tu primer niño usando el gestor de perfiles de arriba.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
