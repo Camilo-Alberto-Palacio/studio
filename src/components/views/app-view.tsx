@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase/config';
 import { useAuth } from '@/hooks/use-auth';
-import { getNotebookAdvice } from '@/app/actions';
+import { getNotebookAdvice, getScheduleFromImage } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff } from 'lucide-react';
+import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles } from 'lucide-react';
+import { omitBy } from 'lodash';
 
 type AppViewProps = {
   setView: (view: 'app' | 'settings') => void;
@@ -25,6 +26,8 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [scheduleExists, setScheduleExists] = useState(true);
+  const [processingImage, setProcessingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
     if (!user) return;
@@ -39,10 +42,10 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
       const scheduleRef = doc(db, 'schedules', user.uid);
       const scheduleSnap = await getDoc(scheduleRef);
 
-      if (scheduleSnap.exists()) {
+      if (scheduleSnap.exists() && scheduleSnap.data().schedule) {
         setScheduleExists(true);
         const scheduleData = scheduleSnap.data();
-        const scheduleString = JSON.stringify(scheduleData);
+        const scheduleString = JSON.stringify(scheduleData.schedule);
         const vacations = scheduleData.vacations || [];
         const result = await getNotebookAdvice(scheduleString, vacations);
         
@@ -91,6 +94,41 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     setNotebooks(currentNotebooks => currentNotebooks.filter(notebook => notebook !== notebookToRemove));
   };
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    setProcessingImage(true);
+    toast({ title: 'Procesando imagen...', description: 'La IA está analizando tu horario. Esto puede tardar un momento.' });
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+        const photoDataUri = reader.result as string;
+        const result = await getScheduleFromImage(photoDataUri);
+
+        if (result.success && result.schedule) {
+            try {
+              const scheduleRef = doc(db, 'schedules', user.uid);
+              const cleanedSchedule = omitBy(result.schedule, (value) => !value);
+              await setDoc(scheduleRef, { schedule: cleanedSchedule }, { merge: true });
+              toast({ title: '¡Horario guardado!', description: 'Tu horario ha sido guardado y analizado.' });
+              fetchAdvice(true);
+            } catch (error) {
+              toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar el horario extraído.' });
+            }
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setProcessingImage(false);
+    };
+    reader.onerror = (error) => {
+        console.error(error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo leer el archivo de imagen.' });
+        setProcessingImage(false);
+    }
+  };
+
 
   const renderNotebooks = () => {
     if (loading) {
@@ -104,12 +142,32 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
 
     if (!scheduleExists) {
         return (
-            <div className="text-center p-6 border-2 border-dashed rounded-lg bg-card">
-                <p className="text-muted-foreground mb-4 font-medium">Parece que aún no has configurado tu horario semanal.</p>
-                <Button onClick={() => setView('settings')}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Ir a Configuración
-                </Button>
+            <div className="text-center p-6 border-2 border-dashed rounded-lg bg-card space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Bienvenido/a</h3>
+                  <p className="text-muted-foreground font-medium">Empieza por configurar tu horario.</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button onClick={() => fileInputRef.current?.click()} disabled={processingImage} className="w-full sm:w-auto">
+                        {processingImage ? (
+                            <Sparkles className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Upload className="mr-2 h-4 w-4" />
+                        )}
+                        Subir Horario con IA
+                    </Button>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        accept="image/*"
+                    />
+                    <Button variant="secondary" onClick={() => setView('settings')} className="w-full sm:w-auto">
+                        <Settings className="mr-2 h-4 w-4" />
+                        Configuración Manual
+                    </Button>
+                </div>
             </div>
         );
     }
@@ -166,7 +224,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
               <CardTitle>Cuadernos para Mañana</CardTitle>
               <CardDescription>Esto es lo que necesitas empacar para tus clases.</CardDescription>
             </div>
-            <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading} aria-label="Refrescar recomendaciones">
+            <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
