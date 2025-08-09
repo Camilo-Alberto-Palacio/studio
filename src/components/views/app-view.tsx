@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Book, Settings, LogOut, Backpack, RefreshCw } from 'lucide-react';
+import { Book, Settings, LogOut, Backpack, RefreshCw, X } from 'lucide-react';
 
 type AppViewProps = {
   setView: (view: 'app' | 'settings') => void;
@@ -20,7 +20,7 @@ type AppViewProps = {
 export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [notebooks, setNotebooks] = useState<string>('');
+  const [notebooks, setNotebooks] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [scheduleExists, setScheduleExists] = useState(true);
@@ -44,15 +44,17 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         const scheduleString = JSON.stringify(scheduleData);
         const result = await getNotebookAdvice(scheduleString);
         
-        if (result.success) {
-          setNotebooks(result.notebooks ?? '');
-        } else {
+        if (result.success && result.notebooks) {
+          setNotebooks(result.notebooks.split(',').map(n => n.trim()).filter(Boolean));
+        } else if (!result.success) {
           toast({ variant: 'destructive', title: 'Error', description: result.error });
-          setNotebooks('');
+          setNotebooks([]);
+        } else {
+            setNotebooks([]);
         }
       } else {
         setScheduleExists(false);
-        setNotebooks('');
+        setNotebooks([]);
       }
     } catch (error) {
       console.error(error);
@@ -79,6 +81,11 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     }
   };
 
+  const handleRemoveNotebook = (notebookToRemove: string) => {
+    setNotebooks(currentNotebooks => currentNotebooks.filter(notebook => notebook !== notebookToRemove));
+  };
+
+
   const renderNotebooks = () => {
     if (loading) {
       return (
@@ -101,14 +108,19 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         );
     }
 
-    if (!notebooks) {
+    if (notebooks.length === 0) {
         return <p className="text-muted-foreground text-center italic py-4">No se necesitan cuadernos para mañana. ¡Disfruta tu día libre!</p>;
     }
 
-    return notebooks.split(',').map((notebook, index) => (
-      <div key={index} className="flex items-center gap-3 p-3 bg-secondary rounded-md">
-        <Book className="h-5 w-5 text-primary" />
-        <span className="font-medium">{notebook.trim()}</span>
+    return notebooks.map((notebook, index) => (
+      <div key={index} className="flex items-center justify-between gap-3 p-3 bg-secondary rounded-md animate-in fade-in-50">
+        <div className="flex items-center gap-3">
+          <Book className="h-5 w-5 text-primary" />
+          <span className="font-medium">{notebook}</span>
+        </div>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleRemoveNotebook(notebook)}>
+            <X className="h-4 w-4 text-muted-foreground" />
+        </Button>
       </div>
     ));
   };
