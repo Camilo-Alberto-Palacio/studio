@@ -33,6 +33,8 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const [adviceTitle, setAdviceTitle] = useState('Cuadernos para Hoy');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const hasPlayedAuto = useRef(false);
+
   
   const handlePlayAudio = useCallback(() => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
@@ -55,7 +57,6 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
     const utterance = new SpeechSynthesisUtterance(textToSay);
     
-    // Find a Spanish voice
     const voices = window.speechSynthesis.getVoices();
     const spanishVoice = voices.find(voice => voice.lang.startsWith('es'));
     if (spanishVoice) {
@@ -85,6 +86,14 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
       setRefreshing(true);
     } else {
       setLoading(true);
+    }
+    
+    // Reset auto-play flag on fetch
+    hasPlayedAuto.current = false;
+    // Cancel any ongoing speech
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
     }
 
     try {
@@ -174,18 +183,23 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
   
-  // Pre-load voices for speech synthesis
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
-      // This is a trick to get voices loaded on some browsers.
       const voices = window.speechSynthesis.getVoices();
       if (voices.length === 0) {
-        window.speechSynthesis.onvoiceschanged = () => {
-          // voices loaded
-        };
+        window.speechSynthesis.onvoiceschanged = () => {};
       }
     }
   }, []);
+
+  useEffect(() => {
+    // Auto-play logic
+    if (!loading && notebooks.length > 0 && !isVacation && !hasPlayedAuto.current) {
+        handlePlayAudio();
+        hasPlayedAuto.current = true;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, notebooks, isVacation]);
 
 
   const handleLogout = async () => {
