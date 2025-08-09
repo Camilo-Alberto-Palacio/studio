@@ -3,7 +3,9 @@
 import { Profile } from '@/app/page';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { User, Users, PlusCircle } from 'lucide-react';
+import { Users, PlusCircle } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
 
 type ProfileSelectorViewProps = {
   profiles: Profile[];
@@ -29,20 +31,25 @@ export default function ProfileSelectorView({ profiles, onProfileSelect, setView
                         <Button
                             key={profile.id}
                             variant="outline"
-                            className="w-full justify-start h-14 text-lg"
+                            className="w-full justify-start h-16 text-lg gap-4"
                             onClick={() => onProfileSelect(profile)}
                         >
-                            <User className="mr-4 h-6 w-6" />
-                            {profile.name}
+                            <Avatar>
+                                <AvatarImage src={`https://api.dicebear.com/8.x/bottts-neutral/svg?seed=${profile.name}`} alt={profile.name} />
+                                <AvatarFallback>{profile.name.substring(0,2)}</AvatarFallback>
+                            </Avatar>
+                            <span>{profile.name}</span>
                         </Button>
                     ))}
                      <Button
                         variant="secondary"
-                        className="w-full justify-start h-14 text-lg"
+                        className="w-full justify-start h-16 text-lg gap-4"
                         onClick={() => setView('settings')}
                     >
-                        <PlusCircle className="mr-4 h-6 w-6" />
-                        Añadir un nuevo perfil
+                        <div className='w-10 h-10 flex items-center justify-center'>
+                           <PlusCircle className="h-8 w-8" />
+                        </div>
+                        <span>Añadir un nuevo perfil</span>
                     </Button>
                 </div>
             </CardContent>

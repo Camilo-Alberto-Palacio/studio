@@ -3,13 +3,15 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { db, generateId } from '@/lib/firebase/config';
-import { doc, setDoc, getDoc, writeBatch, arrayUnion, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, writeBatch, arrayUnion } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Trash2, Edit, Save, X, User } from 'lucide-react';
+import { PlusCircle, Trash2, Edit, Save, X } from 'lucide-react';
 import { Profile } from '@/app/page';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+
 
 type ProfileManagerProps = {
   profiles: Profile[];
@@ -127,7 +129,10 @@ export default function ProfileManager({ profiles, onProfilesUpdate }: ProfileMa
             <div key={profile.id} className="flex items-center justify-between p-2 rounded-md bg-secondary">
               {editingProfileId === profile.id ? (
                 <div className="flex-grow flex items-center gap-2">
-                    <User className="h-5 w-5 text-muted-foreground" />
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={`https://api.dicebear.com/8.x/bottts-neutral/svg?seed=${editingProfileName}`} alt={editingProfileName} />
+                      <AvatarFallback>{editingProfileName.substring(0,2)}</AvatarFallback>
+                    </Avatar>
                     <Input
                         value={editingProfileName}
                         onChange={e => setEditingProfileName(e.target.value)}
@@ -135,7 +140,13 @@ export default function ProfileManager({ profiles, onProfilesUpdate }: ProfileMa
                     />
                 </div>
               ) : (
-                <span className="font-medium flex items-center gap-2"><User className="h-5 w-5 text-muted-foreground" />{profile.name}</span>
+                <div className="font-medium flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={`https://api.dicebear.com/8.x/bottts-neutral/svg?seed=${profile.name}`} alt={profile.name} />
+                      <AvatarFallback>{profile.name.substring(0,2)}</AvatarFallback>
+                    </Avatar>
+                  {profile.name}
+                </div>
               )}
               <div className="flex items-center gap-1">
                 {editingProfileId === profile.id ? (
