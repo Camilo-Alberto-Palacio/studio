@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles } from 'lucide-react';
-import { omitBy } from 'lodash';
+import { isEmpty, omitBy } from 'lodash';
 
 type AppViewProps = {
   setView: (view: 'app' | 'settings') => void;
@@ -41,10 +41,10 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     try {
       const scheduleRef = doc(db, 'schedules', user.uid);
       const scheduleSnap = await getDoc(scheduleRef);
+      const scheduleData = scheduleSnap.data();
 
-      if (scheduleSnap.exists() && scheduleSnap.data().schedule) {
+      if (scheduleSnap.exists() && scheduleData?.schedule && !isEmpty(scheduleData.schedule)) {
         setScheduleExists(true);
-        const scheduleData = scheduleSnap.data();
         const scheduleString = JSON.stringify(scheduleData.schedule);
         const vacations = scheduleData.vacations || [];
         const result = await getNotebookAdvice(scheduleString, vacations);
@@ -144,8 +144,8 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         return (
             <div className="text-center p-6 border-2 border-dashed rounded-lg bg-card space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold">Bienvenido/a</h3>
-                  <p className="text-muted-foreground font-medium">Empieza por configurar tu horario.</p>
+                  <h3 className="text-lg font-semibold">¡Hola! Te doy la bienvenida.</h3>
+                  <p className="text-muted-foreground font-medium">Para empezar, necesito conocer tu horario.</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <Button onClick={() => fileInputRef.current?.click()} disabled={processingImage} className="w-full sm:w-auto">
