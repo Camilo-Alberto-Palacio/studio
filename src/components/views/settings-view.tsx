@@ -43,7 +43,12 @@ export default function SettingsView({ setView }: SettingsViewProps) {
       const scheduleRef = doc(db, 'schedules', user.uid);
       const scheduleSnap = await getDoc(scheduleRef);
       if (scheduleSnap.exists()) {
-        setSchedule(scheduleSnap.data() as Schedule);
+        const existingSchedule = scheduleSnap.data() as Schedule;
+        const fullSchedule = internalDaysOfWeek.reduce((acc, day) => {
+            acc[day] = existingSchedule[day] || '';
+            return acc;
+        }, {} as Schedule)
+        setSchedule(fullSchedule);
       }
     } catch (error) {
       console.error(error);
@@ -66,7 +71,15 @@ export default function SettingsView({ setView }: SettingsViewProps) {
     setSaving(true);
     try {
       const scheduleRef = doc(db, 'schedules', user.uid);
-      await setDoc(scheduleRef, schedule, { merge: true });
+      
+      const scheduleToSave = Object.entries(schedule).reduce((acc, [day, subjects]) => {
+          if(subjects.trim() !== '') {
+              acc[day] = subjects;
+          }
+          return acc;
+      }, {} as Schedule);
+
+      await setDoc(scheduleRef, scheduleToSave);
       toast({ title: '¡Éxito!', description: 'Tu horario ha sido guardado.' });
       setView('app');
     } catch (error: any) {
