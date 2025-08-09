@@ -33,13 +33,18 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  
+  const adviceTitleRef = useRef(adviceTitle);
+  useEffect(() => {
+    adviceTitleRef.current = adviceTitle;
+  }, [adviceTitle]);
 
   const handlePlayAudio = useCallback(async (notebookList: string[]) => {
     if (isGeneratingAudio || notebookList.length === 0) return;
     
     setIsGeneratingAudio(true);
     try {
-        const textToSay = `Para ${adviceTitle.split(' ').slice(2).join(' ')}, necesitas los siguientes cuadernos: ${notebookList.join(', ')}.`;
+        const textToSay = `Para ${adviceTitleRef.current.split(' ').slice(2).join(' ')}, necesitas los siguientes cuadernos: ${notebookList.join(', ')}.`;
         const result = await getAudioForText(textToSay);
 
         if(result.success && result.audio) {
@@ -58,7 +63,7 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     } finally {
         setIsGeneratingAudio(false);
     }
-  }, [adviceTitle, isGeneratingAudio, toast]);
+  }, [isGeneratingAudio, toast]);
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
     if (!user) return;
@@ -82,27 +87,23 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
         let targetDate = new Date(now);
         let title = 'Cuadernos para Hoy';
     
-        // Monday to Thursday
-        if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+        if (dayOfWeek >= 1 && dayOfWeek <= 4) { // Monday to Thursday
           if (hour >= 15) { // After 3 PM, show tomorrow's schedule
             targetDate.setDate(now.getDate() + 1);
             title = 'Cuadernos para Mañana';
           }
         }
-        // Friday
-        else if (dayOfWeek === 5) {
+        else if (dayOfWeek === 5) { // Friday
           if (hour >= 15) { // After 3 PM on Friday, show Monday's schedule
             targetDate.setDate(now.getDate() + 3);
             title = 'Cuadernos para el Lunes';
           }
         }
-        // Saturday
-        else if (dayOfWeek === 6) {
+        else if (dayOfWeek === 6) { // Saturday
           targetDate.setDate(now.getDate() + 2);
           title = 'Cuadernos para el Lunes';
         }
-        // Sunday
-        else if (dayOfWeek === 0) {
+        else if (dayOfWeek === 0) { // Sunday
           targetDate.setDate(now.getDate() + 1);
           title = 'Cuadernos para Mañana';
         }
@@ -125,13 +126,11 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
           setIsVacation(result.isVacation || false);
           const newNotebooks = result.notebooks ? result.notebooks.split(',').map(n => n.trim()).filter(Boolean) : [];
           setNotebooks(newNotebooks);
-
-          if (isFirstLoad) {
-            if (newNotebooks.length > 0 && !result.isVacation) {
-              handlePlayAudio(newNotebooks);
-            }
-            setIsFirstLoad(false);
+          
+          if (isFirstLoad && newNotebooks.length > 0 && !result.isVacation) {
+            handlePlayAudio(newNotebooks);
           }
+
         } else {
           toast({ variant: 'destructive', title: 'Error', description: result.error });
           setNotebooks([]);
@@ -150,12 +149,16 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
       } else {
         setLoading(false);
       }
+      if (isFirstLoad) {
+        setIsFirstLoad(false);
+      }
     }
   }, [user, toast, isFirstLoad, handlePlayAudio]);
 
   useEffect(() => {
     fetchAdvice(false);
-  }, [fetchAdvice, shouldRefresh]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldRefresh]);
 
   const handleLogout = async () => {
     try {
