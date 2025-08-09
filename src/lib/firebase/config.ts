@@ -5,12 +5,13 @@ import { getFirestore } from "firebase/firestore";
 // Paste your Firebase config object here.
 // You can get this from your project's settings in the Firebase console.
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  "projectId": "smartbackpack-planner",
+  "appId": "1:313960103405:web:18db10f2f21c14656dbbe4",
+  "storageBucket": "smartbackpack-planner.firebasestorage.app",
+  "apiKey": "AIzaSyD14Kv8X41hCidDL8Z9dNnE0GQjIGr5eRc",
+  "authDomain": "smartbackpack-planner.firebaseapp.com",
+  "measurementId": "",
+  "messagingSenderId": "313960103405"
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
