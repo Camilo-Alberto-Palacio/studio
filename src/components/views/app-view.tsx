@@ -33,12 +33,10 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const [adviceTitle, setAdviceTitle] = useState('Cuadernos para Hoy');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // State for robust speech synthesis
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speechSynthesisVoices, setSpeechSynthesisVoices] = useState<SpeechSynthesisVoice[]>([]);
   const hasPlayedAuto = useRef(false);
 
-  // Load voices when component mounts
   useEffect(() => {
     const loadVoices = () => {
       const availableVoices = window.speechSynthesis.getVoices();
@@ -47,29 +45,25 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
       }
     };
 
-    // The 'voiceschanged' event is crucial for mobile, especially Android
     window.speechSynthesis.onvoiceschanged = loadVoices;
-    // Call it once to handle cases where voices are already loaded
     loadVoices(); 
 
     return () => {
       window.speechSynthesis.onvoiceschanged = null;
-      // Ensure any ongoing speech is stopped when the component unmounts
       if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
       }
     };
   }, []);
 
-
-  const handlePlayAudio = useCallback(() => {
+  const playAudio = useCallback(() => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
-        toast({
-            variant: 'destructive',
-            title: 'Audio no soportado',
-            description: 'Tu navegador no soporta la síntesis de voz.',
-        });
-        return;
+      toast({
+          variant: 'destructive',
+          title: 'Audio no soportado',
+          description: 'Tu navegador no soporta la síntesis de voz.',
+      });
+      return;
     }
 
     if (isSpeaking) {
@@ -83,7 +77,6 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
     const utterance = new SpeechSynthesisUtterance(textToSay);
     
-    // Explicitly select a Spanish voice for better reliability
     const spanishVoice = speechSynthesisVoices.find(voice => voice.lang.startsWith('es'));
     if (spanishVoice) {
         utterance.voice = spanishVoice;
@@ -207,12 +200,11 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   }, [profile]);
   
   useEffect(() => {
-    // Auto-play logic, now safer because it depends on handlePlayAudio which waits for voices
     if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedAuto.current && speechSynthesisVoices.length > 0) {
-        handlePlayAudio();
+        playAudio();
         hasPlayedAuto.current = true;
     }
-  }, [loading, notebooks, isVacation, handlePlayAudio, speechSynthesisVoices]);
+  }, [loading, notebooks, isVacation, playAudio, speechSynthesisVoices]);
 
 
   const handleLogout = async () => {
@@ -371,7 +363,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
               <CardDescription>Esto es lo que {profile.name} necesita empacar.</CardDescription>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" onClick={handlePlayAudio} disabled={notebooks.length === 0 || loading || speechSynthesisVoices.length === 0} aria-label="Leer en voz alta">
+              <Button variant="outline" size="icon" onClick={playAudio} disabled={notebooks.length === 0 || loading || speechSynthesisVoices.length === 0} aria-label="Leer en voz alta">
                 {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
               </Button>
               <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
