@@ -35,7 +35,6 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
-  const [hasPlayedInitialAudio, setHasPlayedInitialAudio] = useState(false);
   
   const handlePlayAudio = useCallback(async () => {
     // If we have cached audio, just play it.
@@ -83,7 +82,6 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
       setRefreshing(true);
     } else {
       setLoading(true);
-      setHasPlayedInitialAudio(false); // Reset audio play state on profile change
       setAudioSrc(null); // Clear cached audio on profile change or initial load
     }
 
@@ -174,14 +172,6 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     fetchAdvice(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
-
-
-  useEffect(() => {
-    if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedInitialAudio) {
-      handlePlayAudio();
-      setHasPlayedInitialAudio(true);
-    }
-  }, [loading, isVacation, notebooks, hasPlayedInitialAudio, handlePlayAudio]);
 
 
   const handleLogout = async () => {
@@ -362,3 +352,5 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     </div>
   );
 }
+
+    
