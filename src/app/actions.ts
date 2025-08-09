@@ -33,8 +33,9 @@ export async function getAudioForText(text: string) {
     try {
         const result = await textToSpeech(text);
         return { success: true, audio: result.media };
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error generating audio:', error);
-        return { success: false, error: 'No se pudo generar el audio.' };
+        // Pass the specific error message from the flow to the client
+        return { success: false, error: error.message || 'No se pudo generar el audio.' };
     }
 }
