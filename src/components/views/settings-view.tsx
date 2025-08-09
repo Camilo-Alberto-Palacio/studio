@@ -16,7 +16,8 @@ type SettingsViewProps = {
   setView: (view: 'app' | 'settings') => void;
 };
 
-const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const daysOfWeek = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+const internalDaysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 type Schedule = {
     [key: string]: string;
@@ -46,7 +47,7 @@ export default function SettingsView({ setView }: SettingsViewProps) {
       }
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to load your schedule.' });
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cargar tu horario.' });
     } finally {
       setLoading(false);
     }
@@ -66,10 +67,10 @@ export default function SettingsView({ setView }: SettingsViewProps) {
     try {
       const scheduleRef = doc(db, 'schedules', user.uid);
       await setDoc(scheduleRef, schedule, { merge: true });
-      toast({ title: 'Success!', description: 'Your schedule has been saved.' });
+      toast({ title: '¡Éxito!', description: 'Tu horario ha sido guardado.' });
       setView('app');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: `Failed to save schedule: ${error.message}` });
+      toast({ variant: 'destructive', title: 'Error', description: `No se pudo guardar el horario: ${error.message}` });
     } finally {
       setSaving(false);
     }
@@ -102,31 +103,31 @@ export default function SettingsView({ setView }: SettingsViewProps) {
     <div className="max-w-2xl mx-auto animate-in fade-in-50">
         <Button variant="outline" onClick={() => setView('app')} className="mb-6">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
+            Volver al Panel
         </Button>
         <Card className="shadow-lg">
             <CardHeader>
-                <CardTitle>Configure Your Schedule</CardTitle>
+                <CardTitle>Configura tu Horario</CardTitle>
                 <CardDescription>
-                    Enter your subjects or required books for each day. For example: "Math, History Notebook, Biology Textbook".
+                    Ingresa tus asignaturas o libros necesarios para cada día. Por ejemplo: "Matemáticas, Cuaderno de Historia, Libro de Biología".
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-6">
-                    {daysOfWeek.map(day => (
-                        <div key={day} className="space-y-2">
+                    {daysOfWeek.map((day, index) => (
+                        <div key={internalDaysOfWeek[index]} className="space-y-2">
                             <Label htmlFor={day} className="text-base font-medium">{day}</Label>
                             <Input
                                 id={day}
-                                value={schedule[day] || ''}
-                                onChange={(e) => handleInputChange(day, e.target.value)}
-                                placeholder="e.g., Math, History, Biology"
+                                value={schedule[internalDaysOfWeek[index]] || ''}
+                                onChange={(e) => handleInputChange(internalDaysOfWeek[index], e.target.value)}
+                                placeholder="Ej: Matemáticas, Historia, Biología"
                             />
                         </div>
                     ))}
                     <Button type="submit" disabled={saving} className="mt-8 bg-accent hover:bg-accent/90">
                         <Save className="mr-2 h-4 w-4" />
-                        {saving ? 'Saving...' : 'Save Schedule'}
+                        {saving ? 'Guardando...' : 'Guardar Horario'}
                     </Button>
                 </form>
             </CardContent>

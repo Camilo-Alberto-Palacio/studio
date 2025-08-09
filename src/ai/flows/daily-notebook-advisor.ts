@@ -32,14 +32,14 @@ const prompt = ai.definePrompt({
   name: 'adviseDailyNotebooksPrompt',
   input: {schema: AdviseDailyNotebooksInputSchema},
   output: {schema: AdviseDailyNotebooksOutputSchema},
-  prompt: `You are a personal assistant helping students pack their backpacks.
+  prompt: `Eres un asistente personal que ayuda a los estudiantes a empacar sus mochilas.
 
-You will be provided with the student's schedule and the date to check. Your task is to determine which notebooks are required for the classes on that day.
+Se te proporcionará el horario del estudiante y la fecha a consultar. Tu tarea es determinar qué cuadernos se requieren para las clases de ese día.
 
-Date: {{{date}}}
-Schedule: {{{schedule}}}
+Fecha: {{{date}}}
+Horario: {{{schedule}}}
 
-Return a comma separated list of the notebooks that are required. If there are no classes on that day, return an empty string.
+Devuelve una lista separada por comas de los cuadernos que se requieren. Si no hay clases ese día, devuelve una cadena vacía.
 `,
 });
 

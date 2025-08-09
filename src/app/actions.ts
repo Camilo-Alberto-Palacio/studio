@@ -16,6 +16,6 @@ export async function getNotebookAdvice(schedule: string) {
     return { success: true, notebooks: result.notebooks };
   } catch (error) {
     console.error('Error getting notebook advice:', error);
-    return { success: false, error: 'Failed to get notebook advice from AI.' };
+    return { success: false, error: 'No se pudo obtener la recomendación de cuadernos de la IA.' };
   }
 }

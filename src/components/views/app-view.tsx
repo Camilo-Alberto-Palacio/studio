@@ -49,7 +49,7 @@ export default function AppView({ setView }: AppViewProps) {
       }
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch your schedule and advice.' });
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo obtener tu horario y recomendaciones.' });
     } finally {
       setLoading(false);
     }
@@ -62,9 +62,9 @@ export default function AppView({ setView }: AppViewProps) {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
+      toast({ title: 'Sesión Cerrada', description: 'Has cerrado sesión exitosamente.' });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Logout Error', description: error.message });
+      toast({ variant: 'destructive', title: 'Error al Cerrar Sesión', description: error.message });
     }
   };
 
@@ -81,17 +81,17 @@ export default function AppView({ setView }: AppViewProps) {
     if (!scheduleExists) {
         return (
             <div className="text-center p-6 border-2 border-dashed rounded-lg bg-secondary">
-                <p className="text-muted-foreground mb-4">You haven't set up your schedule yet.</p>
+                <p className="text-muted-foreground mb-4">Aún no has configurado tu horario.</p>
                 <Button onClick={() => setView('settings')}>
                     <Settings className="mr-2 h-4 w-4" />
-                    Set Up Schedule
+                    Configurar Horario
                 </Button>
             </div>
         );
     }
 
     if (!notebooks) {
-        return <p className="text-muted-foreground text-center italic py-4">No notebooks needed for tomorrow. Enjoy your day off!</p>;
+        return <p className="text-muted-foreground text-center italic py-4">No se necesitan cuadernos para mañana. ¡Disfruta tu día libre!</p>;
     }
 
     return notebooks.split(',').map((notebook, index) => (
@@ -108,13 +108,13 @@ export default function AppView({ setView }: AppViewProps) {
       <header className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
             <Backpack className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl sm:text-3xl font-bold font-headline">My Smart Backpack</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold font-headline">Mi Mochila Inteligente</h1>
         </div>
         <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={() => setView('settings')} aria-label="Settings">
+            <Button variant="ghost" size="icon" onClick={() => setView('settings')} aria-label="Configuración">
                 <Settings className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Log out">
+            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Cerrar sesión">
                 <LogOut className="h-5 w-5" />
             </Button>
         </div>
@@ -124,10 +124,10 @@ export default function AppView({ setView }: AppViewProps) {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>Notebooks for Tomorrow</CardTitle>
-              <CardDescription>Here's what you need to pack for your classes.</CardDescription>
+              <CardTitle>Cuadernos para Mañana</CardTitle>
+              <CardDescription>Esto es lo que necesitas empacar para tus clases.</CardDescription>
             </div>
-            <Button variant="outline" size="icon" onClick={fetchAdvice} disabled={loading} aria-label="Refresh advice">
+            <Button variant="outline" size="icon" onClick={fetchAdvice} disabled={loading} aria-label="Refrescar recomendaciones">
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           </div>

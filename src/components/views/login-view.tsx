@@ -34,14 +34,14 @@ export default function LoginView() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       toast({
-        title: 'Welcome back!',
-        description: 'You have successfully logged in.',
+        title: '¡Bienvenido de vuelta!',
+        description: 'Has iniciado sesión correctamente.',
       });
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Authentication Error',
-        description: error.message,
+        title: 'Error de Autenticación',
+        description: 'Credenciales inválidas. Por favor, inténtalo de nuevo.',
       });
     } finally {
       setLoading(false);
@@ -53,13 +53,13 @@ export default function LoginView() {
     try {
       await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
       toast({
-        title: 'Success!',
-        description: 'Account created successfully. You are now logged in.',
+        title: '¡Éxito!',
+        description: 'Cuenta creada correctamente. Ahora has iniciado sesión.',
       });
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Authentication Error',
+        title: 'Error de Autenticación',
         description: error.message,
       });
     } finally {
@@ -73,36 +73,36 @@ export default function LoginView() {
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
             <Backpack className="h-12 w-12 text-primary mb-4" />
-            <h1 className="text-3xl font-bold font-headline">SmartBackpack Planner</h1>
-            <p className="text-muted-foreground mt-2">Never forget a notebook again.</p>
+            <h1 className="text-3xl font-bold font-headline">Planificador de Mochila Inteligente</h1>
+            <p className="text-muted-foreground mt-2">Nunca más olvides un cuaderno.</p>
         </div>
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
+            <TabsTrigger value="signup">Registrarse</TabsTrigger>
           </TabsList>
           <TabsContent value="login">
             <Card>
               <CardHeader>
-                <CardTitle>Login</CardTitle>
+                <CardTitle>Iniciar Sesión</CardTitle>
                 <CardDescription>
-                  Enter your credentials to access your schedule.
+                  Ingresa tus credenciales para acceder a tu horario.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-email">Correo Electrónico</Label>
                   <Input
                     id="login-email"
                     type="email"
-                    placeholder="m@example.com"
+                    placeholder="m@ejemplo.com"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
+                  <Label htmlFor="login-password">Contraseña</Label>
                   <Input
                     id="login-password"
                     type="password"
@@ -114,7 +114,7 @@ export default function LoginView() {
               </CardContent>
               <CardFooter>
                 <Button onClick={handleLogin} disabled={loading} className="w-full">
-                  {loading ? 'Logging in...' : 'Login'}
+                  {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
                 </Button>
               </CardFooter>
             </Card>
@@ -122,25 +122,25 @@ export default function LoginView() {
           <TabsContent value="signup">
             <Card>
               <CardHeader>
-                <CardTitle>Sign Up</CardTitle>
+                <CardTitle>Registrarse</CardTitle>
                 <CardDescription>
-                  Create an account to start planning your backpack.
+                  Crea una cuenta para empezar a planificar tu mochila.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
+                  <Label htmlFor="signup-email">Correo Electrónico</Label>
                   <Input
                     id="signup-email"
                     type="email"
-                    placeholder="m@example.com"
+                    placeholder="m@ejemplo.com"
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
+                  <Label htmlFor="signup-password">Contraseña</Label>
                   <Input
                     id="signup-password"
                     type="password"
@@ -152,7 +152,7 @@ export default function LoginView() {
               </CardContent>
               <CardFooter>
                 <Button onClick={handleSignUp} disabled={loading} className="w-full">
-                   {loading ? 'Creating account...' : 'Sign Up'}
+                   {loading ? 'Creando cuenta...' : 'Registrarse'}
                 </Button>
               </CardFooter>
             </Card>
