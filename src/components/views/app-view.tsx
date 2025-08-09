@@ -36,88 +36,75 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const isMobile = useIsMobile();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-
-  const playAudio = useCallback(async () => {
+  const handlePlayManual = useCallback(async () => {
     if (isSpeaking) {
-      if (isMobile) {
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.currentTime = 0;
-        }
+      if (audioRef.current) {
+        audioRef.current.pause();
       } else {
         window.speechSynthesis.cancel();
       }
       setIsSpeaking(false);
       return;
     }
-  
+
     if (notebooks.length === 0) {
       toast({ title: 'Nada para leer', description: 'No hay cuadernos en la lista para leer en voz alta.' });
       return;
     }
-  
+
     setIsSpeaking(true);
-    
-    if (isMobile) {
-      try {
-        const result = await getAudioForText({ 
+
+    try {
+      if (isMobile) {
+        const result = await getAudioForText({
           profileName: profile.name,
-          adviceTitle: adviceTitle,
-          notebooks: notebooks
+          adviceTitle,
+          notebooks,
         });
 
         if (result.success && result.audioDataUri) {
-          const audio = new Audio(result.audioDataUri);
-          audioRef.current = audio;
-          audio.play();
-          audio.onended = () => setIsSpeaking(false);
-          audio.onerror = () => {
-            toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el archivo de audio.' });
-            setIsSpeaking(false);
+          if (!audioRef.current) {
+            audioRef.current = new Audio(result.audioDataUri);
+          } else {
+            audioRef.current.src = result.audioDataUri;
+          }
+          audioRef.current.play();
+          audioRef.current.onended = () => setIsSpeaking(false);
+          audioRef.current.onerror = () => {
+             toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el archivo de audio.' });
+             setIsSpeaking(false);
           }
         } else {
           throw new Error(result.error || 'No se pudo generar el audio.');
         }
-      } catch (error: any) {
-        console.error('Speech Error', error);
-        toast({ variant: 'destructive', title: 'Error de audio', description: error.message || 'No se pudo generar el audio.' });
-        setIsSpeaking(false);
+      } else { // Desktop browser
+        const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
+        const utterance = new SpeechSynthesisUtterance(textToSay);
+        utterance.lang = 'es-ES';
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => {
+          toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el audio.' });
+          setIsSpeaking(false);
+        };
+        window.speechSynthesis.speak(utterance);
       }
-    } else {
-      const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
-      const utterance = new SpeechSynthesisUtterance(textToSay);
-      utterance.lang = 'es-ES';
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => {
-        toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el audio.' });
-        setIsSpeaking(false);
-      };
-      utteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
+    } catch (error: any) {
+      console.error('Speech Error', error);
+      toast({ variant: 'destructive', title: 'Error de audio', description: error.message || 'No se pudo generar el audio.' });
+      setIsSpeaking(false);
     }
   }, [isSpeaking, notebooks, profile.name, adviceTitle, toast, isMobile]);
 
-
-  const fetchAdvice = useCallback(async (isRefresh = false) => {
+  const fetchAdvice = useCallback(async (isRefresh = false, playAudio = false) => {
     if (!user || !profile) return;
 
     if (isRefresh) {
       setRefreshing(true);
     } else {
       setLoading(true);
-    }
-
-    if (isSpeaking) {
-      if (isMobile) {
-        audioRef.current?.pause();
-      } else {
-        window.speechSynthesis.cancel();
-      }
-      setIsSpeaking(false);
     }
 
     try {
@@ -154,10 +141,11 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
       };
 
       const { targetDate, title } = determineAdviceDate();
-      setAdviceDate(targetDate);
-      setAdviceTitle(title);
       const dateString = targetDate.toISOString().split('T')[0];
       
+      let newNotebooks: string[] = [];
+      let newIsVacation = false;
+
       if (profileDocSnap.exists()) {
         const profileData = profileDocSnap.data();
         const schedule = profileData.schedule || {};
@@ -170,23 +158,52 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
             const result = await getNotebookAdvice(scheduleString, dateString, vacations, profile.name);
             
             if (result.success) {
-                setIsVacation(result.isVacation || false);
-                const newNotebooks = result.notebooks ? result.notebooks.split(',').map(n => n.trim()).filter(Boolean) : [];
-                setNotebooks(newNotebooks);
+                newIsVacation = result.isVacation || false;
+                newNotebooks = result.notebooks ? result.notebooks.split(',').map(n => n.trim()).filter(Boolean) : [];
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: result.error });
-                setNotebooks([]);
             }
         } else {
             setScheduleExists(false);
-            setNotebooks([]);
-            setIsVacation(false);
         }
       } else {
         setScheduleExists(false);
-        setNotebooks([]);
-        setIsVacation(false);
       }
+
+      setAdviceDate(targetDate);
+      setAdviceTitle(title);
+      setNotebooks(newNotebooks);
+      setIsVacation(newIsVacation);
+
+      // Play audio logic is now integrated here
+      if (playAudio && isMobile && newNotebooks.length > 0 && !newIsVacation) {
+        setIsSpeaking(true);
+        try {
+          const audioResult = await getAudioForText({
+            profileName: profile.name,
+            adviceTitle: title,
+            notebooks: newNotebooks,
+          });
+
+          if (audioResult.success && audioResult.audioDataUri) {
+            if (!audioRef.current) {
+              audioRef.current = new Audio(audioResult.audioDataUri);
+            } else {
+              audioRef.current.src = audioResult.audioDataUri;
+            }
+            audioRef.current.play();
+            audioRef.current.onended = () => setIsSpeaking(false);
+            audioRef.current.onerror = () => setIsSpeaking(false);
+          } else {
+             throw new Error(audioResult.error || 'No se pudo generar el audio.');
+          }
+        } catch (e: any) {
+            toast({ variant: 'destructive', title: 'Error de audio', description: e.message || 'No se pudo reproducir el archivo de audio.' });
+            setIsSpeaking(false);
+        }
+      }
+
+
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo obtener tu horario y recomendaciones.' });
@@ -197,23 +214,18 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         setLoading(false);
       }
     }
-  }, [user, profile, toast, isSpeaking, isMobile]);
+  }, [user, profile, toast, isMobile]);
   
   useEffect(() => {
-    fetchAdvice(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile]);
-  
-  useEffect(() => {
-    // Automatic playback logic
     const hasPlayed = sessionStorage.getItem(`played_for_${profile.id}`);
-    
-    if (!loading && !isVacation && notebooks.length > 0 && !hasPlayed) {
-        playAudio();
-        sessionStorage.setItem(`played_for_${profile.id}`, 'true');
+    if (!hasPlayed) {
+      fetchAdvice(false, true); // Pass true to play audio on initial fetch
+      sessionStorage.setItem(`played_for_${profile.id}`, 'true');
+    } else {
+      fetchAdvice(false, false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, isVacation, notebooks, profile.id]);
+  }, [profile]); // Only re-run when profile changes
 
   const handleLogout = async () => {
     try {
@@ -371,10 +383,10 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
               <CardDescription>Esto es lo que {profile.name} necesita empacar.</CardDescription>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" onClick={playAudio} disabled={notebooks.length === 0 || loading || isSpeaking} aria-label="Leer en voz alta">
+              <Button variant="outline" size="icon" onClick={handlePlayManual} disabled={notebooks.length === 0 || loading || isSpeaking} aria-label="Leer en voz alta">
                 {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
               </Button>
-              <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
+              <Button variant="outline" size="icon" onClick={() => fetchAdvice(true, false)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               </Button>
             </div>
