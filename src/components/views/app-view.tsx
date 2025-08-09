@@ -37,47 +37,64 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const isMobile = useIsMobile();
 
 
   const playAudio = useCallback(async () => {
     if (isSpeaking) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+      if (isMobile) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+      } else {
+        window.speechSynthesis.cancel();
       }
       setIsSpeaking(false);
       return;
     }
-    
+  
     if (notebooks.length === 0) {
       toast({ title: 'Nada para leer', description: 'No hay cuadernos en la lista para leer en voz alta.' });
       return;
     }
-    
+  
     setIsSpeaking(true);
     const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
-    
-    try {
-      const result = await getAudioForText(textToSay);
-      if (result.success && result.audioDataUri) {
-        const audio = new Audio(result.audioDataUri);
-        audioRef.current = audio;
-        audio.play();
-        audio.onended = () => setIsSpeaking(false);
-        audio.onerror = () => {
-          toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el archivo de audio.' });
-          setIsSpeaking(false);
+  
+    if (isMobile) {
+      try {
+        const result = await getAudioForText(textToSay);
+        if (result.success && result.audioDataUri) {
+          const audio = new Audio(result.audioDataUri);
+          audioRef.current = audio;
+          audio.play();
+          audio.onended = () => setIsSpeaking(false);
+          audio.onerror = () => {
+            toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el archivo de audio.' });
+            setIsSpeaking(false);
+          }
+        } else {
+          throw new Error(result.error || 'No se pudo generar el audio.');
         }
-      } else {
-        throw new Error(result.error || 'No se pudo generar el audio.');
+      } catch (error: any) {
+        console.error('Speech Error', error);
+        toast({ variant: 'destructive', title: 'Error de audio', description: error.message || 'No se pudo generar el audio.' });
+        setIsSpeaking(false);
       }
-    } catch (error: any) {
-      console.error('Speech Error', error);
-      toast({ variant: 'destructive', title: 'Error de audio', description: error.message || 'No se pudo generar el audio.' });
-      setIsSpeaking(false);
+    } else {
+      const utterance = new SpeechSynthesisUtterance(textToSay);
+      utterance.lang = 'es-ES';
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => {
+        toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el audio.' });
+        setIsSpeaking(false);
+      };
+      utteranceRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
     }
-  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast]);
+  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast, isMobile]);
 
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
@@ -89,10 +106,14 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
       setLoading(true);
     }
 
-    if (audioRef.current) {
-      audioRef.current.pause();
+    if (isSpeaking) {
+      if (isMobile) {
+        audioRef.current?.pause();
+      } else {
+        window.speechSynthesis.cancel();
+      }
+      setIsSpeaking(false);
     }
-    setIsSpeaking(false);
 
     try {
       const profileDocRef = doc(db, 'users', user.uid, 'profiles', profile.id);
@@ -171,7 +192,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         setLoading(false);
       }
     }
-  }, [user, profile, toast]);
+  }, [user, profile, toast, isSpeaking, isMobile]);
   
   useEffect(() => {
     fetchAdvice(false);
@@ -182,14 +203,12 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     // Automatic playback logic
     const hasPlayed = sessionStorage.getItem(`played_for_${profile.id}`);
     
-    // Do not autoplay on mobile devices due to browser restrictions
-    if (isMobile) return;
-
     if (!loading && !isVacation && notebooks.length > 0 && !hasPlayed) {
         playAudio();
         sessionStorage.setItem(`played_for_${profile.id}`, 'true');
     }
-  }, [loading, isVacation, notebooks, profile.id, playAudio, isMobile]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, isVacation, notebooks, profile.id]);
 
   const handleLogout = async () => {
     try {
