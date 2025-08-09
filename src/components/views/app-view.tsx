@@ -34,44 +34,6 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
 
-  const determineAdviceDate = () => {
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // Sunday - 0, Monday - 1, etc.
-    const hour = now.getHours();
-
-    let targetDate = new Date(now);
-    let title = 'Cuadernos para Hoy';
-
-    // Monday to Thursday
-    if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-      if (hour >= 15) { // After 3 PM, show tomorrow's schedule
-        targetDate.setDate(now.getDate() + 1);
-        title = 'Cuadernos para Mañana';
-      }
-    }
-    // Friday
-    else if (dayOfWeek === 5) {
-      if (hour >= 15) { // After 3 PM on Friday, show Monday's schedule
-        targetDate.setDate(now.getDate() + 3);
-        title = 'Cuadernos para el Lunes';
-      }
-    }
-    // Saturday
-    else if (dayOfWeek === 6) {
-      targetDate.setDate(now.getDate() + 2);
-      title = 'Cuadernos para el Lunes';
-    }
-    // Sunday
-    else if (dayOfWeek === 0) {
-      targetDate.setDate(now.getDate() + 1);
-      title = 'Cuadernos para Mañana';
-    }
-    
-    setAdviceDate(targetDate);
-    setAdviceTitle(title);
-    return targetDate;
-  };
-  
   const handlePlayAudio = useCallback(async (notebookList: string[]) => {
     if (isGeneratingAudio || notebookList.length === 0) return;
     
@@ -112,10 +74,48 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
       const scheduleSnap = await getDoc(scheduleRef);
       const scheduleData = scheduleSnap.data();
 
+      const determineAdviceDate = () => {
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // Sunday - 0, Monday - 1, etc.
+        const hour = now.getHours();
+    
+        let targetDate = new Date(now);
+        let title = 'Cuadernos para Hoy';
+    
+        // Monday to Thursday
+        if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+          if (hour >= 15) { // After 3 PM, show tomorrow's schedule
+            targetDate.setDate(now.getDate() + 1);
+            title = 'Cuadernos para Mañana';
+          }
+        }
+        // Friday
+        else if (dayOfWeek === 5) {
+          if (hour >= 15) { // After 3 PM on Friday, show Monday's schedule
+            targetDate.setDate(now.getDate() + 3);
+            title = 'Cuadernos para el Lunes';
+          }
+        }
+        // Saturday
+        else if (dayOfWeek === 6) {
+          targetDate.setDate(now.getDate() + 2);
+          title = 'Cuadernos para el Lunes';
+        }
+        // Sunday
+        else if (dayOfWeek === 0) {
+          targetDate.setDate(now.getDate() + 1);
+          title = 'Cuadernos para Mañana';
+        }
+        
+        setAdviceDate(targetDate);
+        setAdviceTitle(title);
+        return targetDate;
+      };
+
       const targetDate = determineAdviceDate();
       const dateString = targetDate.toISOString().split('T')[0];
 
-      if (scheduleSnap.exists() && scheduleData?.schedule && !isEmpty(scheduleData.schedule)) {
+      if (scheduleSnap.exists() && scheduleData?.schedule && !isEmpty(omitBy(scheduleData.schedule, (value) => !value))) {
         setScheduleExists(true);
         const scheduleString = JSON.stringify(scheduleData.schedule);
         const vacations = scheduleData.vacations || [];
@@ -126,8 +126,10 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
           const newNotebooks = result.notebooks ? result.notebooks.split(',').map(n => n.trim()).filter(Boolean) : [];
           setNotebooks(newNotebooks);
 
-          if (isFirstLoad && newNotebooks.length > 0 && !result.isVacation) {
-            handlePlayAudio(newNotebooks);
+          if (isFirstLoad) {
+            if (newNotebooks.length > 0 && !result.isVacation) {
+              handlePlayAudio(newNotebooks);
+            }
             setIsFirstLoad(false);
           }
         } else {
@@ -326,5 +328,3 @@ export default function AppView({ setView, shouldRefresh }: AppViewProps) {
     </div>
   );
 }
-
-    
