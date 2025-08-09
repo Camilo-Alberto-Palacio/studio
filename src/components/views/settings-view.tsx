@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/hooks/use-auth';
@@ -10,11 +10,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, CalendarIcon } from 'lucide-react';
+import { ArrowLeft, Save, CalendarIcon, Sparkles, Upload } from 'lucide-react';
 import { isEqual, omitBy } from 'lodash';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getScheduleFromImage } from '@/app/actions';
 
 type SettingsViewProps = {
   setView: (view: 'app' | 'settings') => void;
@@ -49,6 +50,8 @@ export default function SettingsView({ setView }: SettingsViewProps) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [processingImage, setProcessingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchSchedule = useCallback(async () => {
     if (!user) return;
@@ -89,6 +92,37 @@ export default function SettingsView({ setView }: SettingsViewProps) {
 
   const handleInputChange = (day: string, value: string) => {
     setSchedule(prev => ({ ...prev, [day]: value }));
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setProcessingImage(true);
+    toast({ title: 'Procesando imagen...', description: 'La IA está analizando tu horario. Esto puede tardar un momento.' });
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+        const photoDataUri = reader.result as string;
+        const result = await getScheduleFromImage(photoDataUri);
+
+        if (result.success && result.schedule) {
+            setSchedule(prev => ({
+                ...prev,
+                ...result.schedule
+            }));
+            toast({ title: '¡Horario extraído!', description: 'El horario ha sido rellenado. Por favor, revísalo y guárdalo.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setProcessingImage(false);
+    };
+    reader.onerror = (error) => {
+        console.error(error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo leer el archivo de imagen.' });
+        setProcessingImage(false);
+    }
   };
 
   const handleSave = async () => {
@@ -171,7 +205,24 @@ export default function SettingsView({ setView }: SettingsViewProps) {
             <CardContent>
                 <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-8">
                     <div>
-                        <h3 className="text-lg font-medium mb-4">Horario Semanal</h3>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-medium">Horario Semanal</h3>
+                            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={processingImage}>
+                                {processingImage ? (
+                                    <Sparkles className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Upload className="mr-2 h-4 w-4" />
+                                )}
+                                Subir Horario
+                            </Button>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleImageUpload}
+                                className="hidden"
+                                accept="image/*"
+                            />
+                        </div>
                         <div className="space-y-6">
                             {daysOfWeek.slice(0, 5).map((day, index) => (
                                 <div key={internalDaysOfWeek[index]} className="space-y-2">
@@ -201,7 +252,7 @@ export default function SettingsView({ setView }: SettingsViewProps) {
                             />
                         </div>
                     </div>
-                    <Button type="submit" disabled={saving || !hasChanges} className="mt-8 bg-accent hover:bg-accent/90">
+                    <Button type="submit" disabled={saving || !hasChanges || processingImage} className="mt-8 bg-accent hover:bg-accent/90">
                         <Save className="mr-2 h-4 w-4" />
                         {saving ? 'Guardando...' : 'Guardar Cambios'}
                     </Button>
