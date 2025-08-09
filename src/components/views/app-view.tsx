@@ -34,25 +34,37 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [hasPlayedInitialAudio, setHasPlayedInitialAudio] = useState(false);
   
-  const handlePlayAudio = useCallback(async (notebookList: string[], title: string) => {
-    if (isGeneratingAudio || notebookList.length === 0) return;
+  const handlePlayAudio = useCallback(async () => {
+    // If we have cached audio, just play it.
+    if (audioSrc && audioRef.current) {
+        audioRef.current.play();
+        return;
+    }
+    
+    if (isGeneratingAudio || notebooks.length === 0) return;
     
     setIsGeneratingAudio(true);
     try {
-        const textToSay = `Para ${profile.name}, ${title.toLowerCase()}, necesitas los siguientes cuadernos: ${notebookList.join(', ')}.`;
+        const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
         const result = await getAudioForText(textToSay);
 
         if(result.success && result.audio) {
-            if(audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.src = '';
-                audioRef.current = null;
-            }
+            setAudioSrc(result.audio); // Cache the audio source
+            
+            // Create and play the new audio
             const audio = new Audio(result.audio);
             audioRef.current = audio;
             audio.play();
+
+            // When audio ends, clean up the audio element ref, but not the src
+            audio.onended = () => {
+                if (audioRef.current === audio) {
+                   audioRef.current = null;
+                }
+            };
         } else {
             toast({ variant: 'destructive', title: 'Error de audio', description: result.error });
         }
@@ -62,7 +74,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     } finally {
         setIsGeneratingAudio(false);
     }
-  }, [isGeneratingAudio, toast, profile.name]);
+  }, [isGeneratingAudio, notebooks, toast, profile.name, audioSrc, adviceTitle]);
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
     if (!user || !profile) return;
@@ -72,6 +84,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     } else {
       setLoading(true);
       setHasPlayedInitialAudio(false); // Reset audio play state on profile change
+      setAudioSrc(null); // Clear cached audio on profile change or initial load
     }
 
     try {
@@ -130,6 +143,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
                 setIsVacation(result.isVacation || false);
                 const newNotebooks = result.notebooks ? result.notebooks.split(',').map(n => n.trim()).filter(Boolean) : [];
                 setNotebooks(newNotebooks);
+                setAudioSrc(null); // Invalidate cached audio as notebooks might have changed
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: result.error });
                 setNotebooks([]);
@@ -164,10 +178,10 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
 
   useEffect(() => {
     if (!loading && !isVacation && notebooks.length > 0 && !hasPlayedInitialAudio) {
-      handlePlayAudio(notebooks, adviceTitle);
+      handlePlayAudio();
       setHasPlayedInitialAudio(true);
     }
-  }, [loading, isVacation, notebooks, hasPlayedInitialAudio, adviceTitle, handlePlayAudio]);
+  }, [loading, isVacation, notebooks, hasPlayedInitialAudio, handlePlayAudio]);
 
 
   const handleLogout = async () => {
@@ -180,7 +194,13 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   };
 
   const handleRemoveNotebook = (notebookToRemove: string) => {
-    setNotebooks(currentNotebooks => currentNotebooks.filter(notebook => notebook !== notebookToRemove));
+    setNotebooks(currentNotebooks => {
+      const newNotebooks = currentNotebooks.filter(notebook => notebook !== notebookToRemove);
+      if(newNotebooks.length !== currentNotebooks.length) {
+        setAudioSrc(null); // Invalidate audio cache if a notebook is removed
+      }
+      return newNotebooks;
+    });
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -324,8 +344,8 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
               <CardDescription>Esto es lo que {profile.name} necesita empacar.</CardDescription>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" onClick={() => handlePlayAudio(notebooks, adviceTitle)} disabled={isGeneratingAudio || notebooks.length === 0 || loading} aria-label="Leer en voz alta">
-                {isGeneratingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+              <Button variant="outline" size="icon" onClick={handlePlayAudio} disabled={isGeneratingAudio || notebooks.length === 0 || loading} aria-label="Leer en voz alta">
+                {isGeneratingAudio && !audioSrc ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
               </Button>
               <Button variant="outline" size="icon" onClick={() => fetchAdvice(true)} disabled={refreshing || loading || !scheduleExists} aria-label="Refrescar recomendaciones">
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
