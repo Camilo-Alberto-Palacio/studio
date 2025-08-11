@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, PlusCircle, BookOpen } from 'lucide-react';
+import { ArrowLeft, Save, PlusCircle, BookOpen, Bell } from 'lucide-react';
 import { isEqual, omitBy } from 'lodash';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -19,6 +19,8 @@ import { Profile } from '@/app/page';
 import ProfileManager from './profile-manager';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { setupNotifications, cancelNotifications } from '@/app/notifications';
 
 type SettingsViewProps = {
   setView: (view: 'app' | 'settings' | 'profiles') => void;
@@ -55,6 +57,8 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedDayForPreview, setSelectedDayForPreview] = useState<string>(internalDaysOfWeek[0]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
 
   useEffect(() => {
     if (!selectedProfileId && initialProfiles.length > 0) {
@@ -78,6 +82,9 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
     try {
       const profileDocRef = doc(db, 'users', user.uid, 'profiles', selectedProfileId);
       const profileDocSnap = await getDoc(profileDocRef);
+      const notificationsKey = `notifications_enabled_${user.uid}_${selectedProfileId}`;
+      const areNotificationsEnabled = localStorage.getItem(notificationsKey) === 'true';
+      setNotificationsEnabled(areNotificationsEnabled);
 
       if (profileDocSnap.exists()) {
         const data = profileDocSnap.data();
@@ -118,6 +125,31 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
   const handleInputChange = (day: string, value: string) => {
     setSchedule(prev => ({ ...prev, [day]: value }));
   };
+  
+  const handleNotificationToggle = async (enabled: boolean) => {
+    if (!user || !selectedProfileId) return;
+
+    setNotificationsEnabled(enabled);
+    const notificationsKey = `notifications_enabled_${user.uid}_${selectedProfileId}`;
+    localStorage.setItem(notificationsKey, String(enabled));
+
+    if (enabled) {
+        const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+        if (selectedProfile) {
+            const success = await setupNotifications(user.uid, selectedProfile);
+            if (success) {
+                toast({ title: "Notificaciones Activadas", description: "Recibirás recordatorios diarios." });
+            } else {
+                // It failed, revert the switch
+                setNotificationsEnabled(false);
+                localStorage.setItem(notificationsKey, 'false');
+            }
+        }
+    } else {
+        await cancelNotifications();
+        toast({ title: "Notificaciones Desactivadas", description: "No recibirás más recordatorios." });
+    }
+  }
 
   const handleSave = async () => {
     if (!user || !selectedProfileId) {
@@ -221,9 +253,30 @@ export default function SettingsView({ setView, onSettingsSaved, profiles: initi
                                 </SelectContent>
                             </Select>
                         </div>
-
-                        {loading ? renderScheduleSkeleton() : (
+                        
+                        {loading ? renderScheduleSkeleton() : !selectedProfileId ? null : (
                             <>
+                                <div>
+                                    <h3 className="text-lg font-medium mb-4">Ajustes Generales</h3>
+                                     <div className="flex items-center justify-between rounded-lg border p-4">
+                                        <div className="space-y-0.5">
+                                            <Label htmlFor="notifications-switch" className="text-base flex items-center gap-2">
+                                                <Bell className="h-4 w-4" />
+                                                Activar Notificaciones
+                                            </Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                Recibe recordatorios a las 3pm y 7pm para alistar la mochila.
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            id="notifications-switch"
+                                            checked={notificationsEnabled}
+                                            onCheckedChange={handleNotificationToggle}
+                                        />
+                                    </div>
+                                </div>
+
+
                                 <div>
                                     <h3 className="text-lg font-medium mb-4">Horario Semanal</h3>
                                     <div className="flex flex-col md:flex-row gap-8">

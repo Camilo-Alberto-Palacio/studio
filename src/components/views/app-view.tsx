@@ -16,6 +16,7 @@ import { Profile } from '@/app/page';
 import { useIsMobile } from '@/hooks/use-mobile';
 import CameraView from './camera-view';
 import AdBanner from '../ad-banner';
+import { setupNotifications } from '@/app/notifications';
 
 type AppViewProps = {
   setView: (view: 'app' | 'settings' | 'profiles') => void;
@@ -41,6 +42,14 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [showCamera, setShowCamera] = useState(false);
+
+  useEffect(() => {
+    // When the app view loads for a profile, check if we should set up notifications
+    if (user && profile) {
+      setupNotifications(user.uid, profile);
+    }
+  }, [user, profile]);
+
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
     if (!user || !profile) return;
@@ -140,21 +149,19 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
 
   // Automatic audio playback effect - runs when notebooks list gets populated
   useEffect(() => {
-    if (notebooks.length === 0 || loading || !isMobile) {
-      return;
-    }
-  
-    const hasPlayed = sessionStorage.getItem(`played_for_${profile.id}`);
-    if (!hasPlayed) {
-      // Use a small timeout to ensure the UI has updated and user can see what's being read
-      setTimeout(() => handlePlayManual(), 500); 
-      sessionStorage.setItem(`played_for_${profile.id}`, 'true');
+    if (notebooks.length > 0 && !loading && isMobile) {
+      const hasPlayed = sessionStorage.getItem(`played_for_${profile.id}`);
+      if (!hasPlayed) {
+        // Use a small timeout to ensure the UI has updated and user can see what's being read
+        setTimeout(() => handlePlayManual(), 500); 
+        sessionStorage.setItem(`played_for_${profile.id}`, 'true');
+      }
     }
      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notebooks, loading]);
   
   const handlePlayManual = useCallback(async () => {
-    if (isSpeaking || notebooks.length === 0) return;
+    if (isSpeaking || notebooks.length === 0 || loading) return;
 
     setIsSpeaking(true);
     
@@ -197,7 +204,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
         toast({ variant: 'destructive', title: 'Error de audio', description: error.message || 'No se pudo generar el audio.' });
         setIsSpeaking(false);
     }
-  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast, isMobile, adviceTitle]);
+  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast, isMobile, loading]);
 
 
   const handleLogout = async () => {
