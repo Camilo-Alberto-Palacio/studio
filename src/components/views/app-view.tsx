@@ -10,11 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles, CalendarDays, Volume2, Loader2, Users } from 'lucide-react';
+import { Book, Settings, LogOut, Backpack, RefreshCw, X, CalendarOff, Upload, Sparkles, CalendarDays, Volume2, Loader2, Users, Camera } from 'lucide-react';
 import { isEmpty, omitBy } from 'lodash';
 import { Profile } from '@/app/page';
 import { useIsMobile } from '@/hooks/use-mobile';
-
+import CameraView from './camera-view';
 
 type AppViewProps = {
   setView: (view: 'app' | 'settings' | 'profiles') => void;
@@ -38,6 +38,8 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   const [isSpeaking, setIsSpeaking] = useState(false);
   const isMobile = useIsMobile();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [showCamera, setShowCamera] = useState(false);
 
   const fetchAdvice = useCallback(async (isRefresh = false) => {
     if (!user || !profile) return;
@@ -137,8 +139,6 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
 
   // Automatic audio playback effect
   useEffect(() => {
-    // This effect runs when notebooks array changes from empty to populated.
-    // This prevents the race condition where audio was requested before data was ready.
     if (notebooks.length > 0 && !loading) {
       const hasPlayed = sessionStorage.getItem(`played_for_${profile.id}`);
       if (!hasPlayed) {
@@ -222,40 +222,51 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
     });
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user || !profile) return;
-
+  const handleImageUpload = async (photoDataUri: string) => {
+    if (!user || !profile) return;
+  
     setProcessingImage(true);
     toast({ title: 'Procesando imagen...', description: 'La IA está analizando tu horario. Esto puede tardar un momento.' });
+  
+    const result = await getScheduleFromImage(photoDataUri);
+  
+    if (result.success && result.schedule) {
+      try {
+        const profileDocRef = doc(db, 'users', user.uid, 'profiles', profile.id);
+        const cleanedSchedule = omitBy(result.schedule, (value) => !value);
+        await setDoc(profileDocRef, { schedule: cleanedSchedule }, { merge: true });
+        toast({ title: '¡Horario guardado!', description: `El horario para ${profile.name} ha sido guardado.` });
+        fetchAdvice(true);
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar el horario extraído.' });
+      }
+    } else {
+      toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
+    setProcessingImage(false);
+    setShowCamera(false); // Close camera view after processing
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = async () => {
+    reader.onload = () => {
         const photoDataUri = reader.result as string;
-        const result = await getScheduleFromImage(photoDataUri);
-
-        if (result.success && result.schedule) {
-            try {
-              const profileDocRef = doc(db, 'users', user.uid, 'profiles', profile.id);
-              const cleanedSchedule = omitBy(result.schedule, (value) => !value);
-              await setDoc(profileDocRef, { schedule: cleanedSchedule }, { merge: true });
-              toast({ title: '¡Horario guardado!', description: `El horario para ${profile.name} ha sido guardado.` });
-              fetchAdvice(true);
-            } catch (error) {
-              toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar el horario extraído.' });
-            }
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setProcessingImage(false);
+        handleImageUpload(photoDataUri);
     };
     reader.onerror = (error) => {
         console.error(error);
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo leer el archivo de imagen.' });
-        setProcessingImage(false);
     }
-  };
+  }
+
+
+  if (showCamera) {
+    return <CameraView onPictureTaken={handleImageUpload} onBack={() => setShowCamera(false)} />;
+  }
 
   const renderNotebooks = () => {
     if (loading) {
@@ -281,20 +292,27 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
                         ) : (
                             <Upload className="mr-2 h-4 w-4" />
                         )}
-                        Subir Horario con IA
+                        Subir Archivo
+                    </Button>
+                     <Button onClick={() => setShowCamera(true)} disabled={processingImage} className="w-full sm:w-auto">
+                        {processingImage ? (
+                            <Sparkles className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Camera className="mr-2 h-4 w-4" />
+                        )}
+                        Tomar Foto
                     </Button>
                     <input
                         type="file"
                         ref={fileInputRef}
-                        onChange={handleImageUpload}
+                        onChange={handleFileUpload}
                         className="hidden"
                         accept="image/*"
                     />
-                    <Button variant="secondary" onClick={() => setView('settings')} className="w-full sm:w-auto">
-                        <Settings className="mr-2 h-4 w-4" />
-                        Configuración Manual
-                    </Button>
                 </div>
+                 <Button variant="link" onClick={() => setView('settings')} className="w-full sm:w-auto mt-2">
+                    o Configurar Manualmente
+                </Button>
             </div>
         );
     }
