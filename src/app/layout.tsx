@@ -1,6 +1,7 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
+import Script from 'next/script';
 
 export const metadata: Metadata = {
   title: 'Planificador de Mochila Inteligente',
@@ -34,6 +35,12 @@ export default function RootLayout({
               }
             `,
           }}
+        />
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5109411801362628"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
         />
       </head>
       <body className="font-body antialiased">

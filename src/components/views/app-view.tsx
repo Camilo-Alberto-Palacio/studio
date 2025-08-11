@@ -15,6 +15,7 @@ import { isEmpty, omitBy } from 'lodash';
 import { Profile } from '@/app/page';
 import { useIsMobile } from '@/hooks/use-mobile';
 import CameraView from './camera-view';
+import AdBanner from '../ad-banner';
 
 type AppViewProps = {
   setView: (view: 'app' | 'settings' | 'profiles') => void;
@@ -137,74 +138,66 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
   }, [profile]);
 
 
-  // Automatic audio playback effect
+  // Automatic audio playback effect - runs when notebooks list gets populated
   useEffect(() => {
-    if (notebooks.length > 0 && !loading) {
-      const hasPlayed = sessionStorage.getItem(`played_for_${profile.id}`);
-      if (!hasPlayed) {
-        handlePlayManual();
-        sessionStorage.setItem(`played_for_${profile.id}`, 'true');
-      }
+    if (notebooks.length === 0 || loading || !isMobile) {
+      return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notebooks, loading, profile.id]);
-
+  
+    const hasPlayed = sessionStorage.getItem(`played_for_${profile.id}`);
+    if (!hasPlayed) {
+      // Use a small timeout to ensure the UI has updated and user can see what's being read
+      setTimeout(() => handlePlayManual(), 500); 
+      sessionStorage.setItem(`played_for_${profile.id}`, 'true');
+    }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notebooks, loading]);
+  
   const handlePlayManual = useCallback(async () => {
-    if (isSpeaking) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-      setIsSpeaking(false);
-      return;
-    }
-  
-    if (notebooks.length === 0 || loading) {
-      toast({ title: 'Nada para leer', description: 'No hay cuadernos en la lista para leer en voz alta.' });
-      return;
-    }
-  
+    if (isSpeaking || notebooks.length === 0) return;
+
     setIsSpeaking(true);
-  
+    
     try {
-      if (isMobile) {
-        const result = await getAudioForText({
-          profileName: profile.name,
-          adviceTitle,
-          notebooks,
-        });
-  
-        if (result.success && result.audioDataUri) {
-          if (!audioRef.current) {
-            audioRef.current = new Audio();
-          }
-          audioRef.current.src = result.audioDataUri;
-          audioRef.current.play();
-          audioRef.current.onended = () => setIsSpeaking(false);
-          audioRef.current.onerror = () => {
-            toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el archivo de audio.' });
-            setIsSpeaking(false);
-          };
-        } else {
-          throw new Error(result.error || 'No se pudo generar el audio.');
+        if (isMobile) {
+            const result = await getAudioForText({
+                profileName: profile.name,
+                adviceTitle,
+                notebooks,
+            });
+
+            if (result.success && result.audioDataUri) {
+                if (audioRef.current) {
+                    audioRef.current.pause();
+                }
+                const newAudio = new Audio(result.audioDataUri);
+                audioRef.current = newAudio;
+                newAudio.play();
+                newAudio.onended = () => setIsSpeaking(false);
+                newAudio.onerror = () => {
+                    toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el archivo de audio.' });
+                    setIsSpeaking(false);
+                };
+            } else {
+                throw new Error(result.error || 'No se pudo generar el audio.');
+            }
+        } else { // Desktop browser
+            const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
+            const utterance = new SpeechSynthesisUtterance(textToSay);
+            utterance.lang = 'es-ES';
+            utterance.onend = () => setIsSpeaking(false);
+            utterance.onerror = () => {
+                toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el audio.' });
+                setIsSpeaking(false);
+            };
+            window.speechSynthesis.speak(utterance);
         }
-      } else { // Desktop browser
-        const textToSay = `Para ${profile.name}, ${adviceTitle.toLowerCase()}, necesitas los siguientes cuadernos: ${notebooks.join(', ')}.`;
-        const utterance = new SpeechSynthesisUtterance(textToSay);
-        utterance.lang = 'es-ES';
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => {
-          toast({ variant: 'destructive', title: 'Error de audio', description: 'No se pudo reproducir el audio.' });
-          setIsSpeaking(false);
-        };
-        window.speechSynthesis.speak(utterance);
-      }
     } catch (error: any) {
-      console.error('Speech Error', error);
-      toast({ variant: 'destructive', title: 'Error de audio', description: error.message || 'No se pudo generar el audio.' });
-      setIsSpeaking(false);
+        console.error('Speech Error', error);
+        toast({ variant: 'destructive', title: 'Error de audio', description: error.message || 'No se pudo generar el audio.' });
+        setIsSpeaking(false);
     }
-  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast, isMobile, loading]);
+  }, [isSpeaking, notebooks, profile.name, adviceTitle, toast, isMobile, adviceTitle]);
 
 
   const handleLogout = async () => {
@@ -396,6 +389,7 @@ export default function AppView({ setView, profile, onProfileChange }: AppViewPr
             </div>
         </CardContent>
       </Card>
+      <AdBanner />
     </div>
   );
 }
