@@ -1,8 +1,11 @@
+// sw.js
 
 const CACHE_NAME = 'smart-backpack-cache-v1';
 const urlsToCache = [
   '/',
-  '/manifest.json'
+  '/manifest.json',
+  '/icons/icon-192x192.svg',
+  '/icons/icon-512x512.svg'
 ];
 
 self.addEventListener('install', event => {
@@ -25,20 +28,5 @@ self.addEventListener('fetch', event => {
         return fetch(event.request);
       }
     )
-  );
-});
-
-self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
   );
 });
