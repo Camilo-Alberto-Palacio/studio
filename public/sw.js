@@ -1,11 +1,11 @@
-// sw.js
+// This is a basic service worker for PWA capabilities
 
 const CACHE_NAME = 'smart-backpack-cache-v1';
 const urlsToCache = [
   '/',
   '/manifest.json',
-  '/icons/icon-192x192.svg',
-  '/icons/icon-512x512.svg'
+  // Add other important assets here.
+  // Be careful with what you cache, as it can make updates tricky.
 ];
 
 self.addEventListener('install', event => {
@@ -28,5 +28,20 @@ self.addEventListener('fetch', event => {
         return fetch(event.request);
       }
     )
+  );
+});
+
+self.addEventListener('activate', event => {
+  const cacheWhitelist = [CACHE_NAME];
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheWhitelist.indexOf(cacheName) === -1) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
   );
 });

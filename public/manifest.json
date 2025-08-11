@@ -1,6 +1,6 @@
 {
-  "name": "Mochila Inteligente",
-  "short_name": "Mochila",
+  "name": "Planificador de Mochila Inteligente",
+  "short_name": "Mochila App",
   "description": "Un planificador inteligente para ayudarte a empacar tu mochila.",
   "start_url": "/",
   "display": "standalone",
