@@ -1,144 +1,113 @@
-const CACHE_NAME = 'smart-backpack-planner-cache-v2';
+const CACHE_NAME = 'smart-backpack-cache-v1';
 const urlsToCache = [
-    '/',
-    '/manifest.json',
-    '/icons/icon-192x192.svg',
-    '/icons/icon-512x512.svg',
+  '/',
+  '/manifest.json',
+  '/icons/icon-192x192.svg',
+  '/icons/icon-512x512.svg'
 ];
+const ADSENSE_URL = 'https://pagead2.googlesyndication.com';
 
-// Install event
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('Opened cache');
-                return cache.addAll(urlsToCache);
-            })
-    );
+self.addEventListener('install', event => {
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        return cache.addAll(urlsToCache);
+      })
+  );
 });
 
-// Fetch event
-self.addEventListener('fetch', (event) => {
-    // Ignore non-GET requests
-    if (event.request.method !== 'GET') {
-        return;
-    }
-    // Ignore requests to Chrome extensions
-    if (event.request.url.startsWith('chrome-extension://')) {
-        return;
-    }
-    // Ignore requests to Google AdSense
-    if (event.request.url.includes('pagead2.googlesyndication.com')) {
-        return;
-    }
-
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                if (response) {
-                    return response;
-                }
-
-                return fetch(event.request).then(
-                    (response) => {
-                        // Check if we received a valid response
-                        if (!response || response.status !== 200 || response.type !== 'basic') {
-                            return response;
-                        }
-
-                        const responseToCache = response.clone();
-                        caches.open(CACHE_NAME)
-                            .then((cache) => {
-                                cache.put(event.request, responseToCache);
-                            });
-                        return response;
-                    }
-                );
-            })
-    );
-});
-
-
-// Activate event
-self.addEventListener('activate', (event) => {
-    const cacheWhitelist = [CACHE_NAME];
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
         })
-    );
+      );
+    })
+  );
+  return self.clients.claim();
 });
 
-const PERIODIC_SYNC_TAG = 'check-notebooks';
 
-async function getFromIdb(key) {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('app-data', 1);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const db = request.result;
-      const transaction = db.transaction(['keyval']);
-      const store = transaction.objectStore('keyval');
-      const getRequest = store.get(key);
-      getRequest.onsuccess = () => resolve(getRequest.result);
-      getRequest.onerror = () => reject(getRequest.error);
-    };
-  });
-}
+self.addEventListener('fetch', event => {
+  const { request } = event;
 
-async function showNotification() {
-    try {
-        const userState = await getFromIdb('user-state');
-        const profileData = await getFromIdb('profile-data');
+  // Don't cache anything that isn't a GET request.
+  if (request.method !== 'GET') {
+    return;
+  }
+  
+  // For AdSense, always fetch from the network.
+  if (request.url.startsWith(ADSENSE_URL)) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
-        if (!userState || !userState.profile || !profileData || !profileData.schedule) {
-            console.log('SW: No user/profile/schedule data in IDB. Skipping notification.');
-            return;
-        }
+  // For other requests, use a cache-first strategy.
+  event.respondWith(
+    caches.match(request).then(cachedResponse => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
 
-        const { profile } = userState;
-        const { schedule, vacations } = profileData;
+      return fetch(request)
+        .then(response => {
+          // Only cache successful responses
+          if (!response || response.status !== 200 || response.type !== 'basic') {
+            return response;
+          }
 
-        // Logic to determine date is inside the fetch call now
-        const response = await fetch('/api/genkit/flows/adviseDailyNotebooksFlow', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                schedule: JSON.stringify(schedule),
-                date: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0], // Check for tomorrow
-                vacations: vacations || [],
-                profileName: profile.name,
-            }),
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(request, responseToCache);
+          });
+          return response;
+        })
+        .catch(error => {
+          console.error('Fetching failed:', error);
+          // You could return a fallback page here if you want.
+          // For now, just re-throw the error.
+          throw error;
         });
+    })
+  );
+});
 
-        const result = await response.json();
-        
-        if (result && result.notebooks && !result.isVacation) {
-            const notebooksList = result.notebooks.split(',').map(n => n.trim()).filter(Boolean);
-            if (notebooksList.length > 0) {
-                 const title = `¡Prepara la mochila de ${profile.name}!`;
-                 const body = `Para mañana necesita: ${notebooksList.join(', ')}.`;
 
-                await self.registration.showNotification(title, {
-                    body: body,
-                    icon: '/icons/icon-192x192.svg',
-                    tag: 'notebook-reminder',
-                });
-            }
-        }
-    } catch (error) {
-        console.error('SW: Error showing notification:', error);
-    }
+
+async function getNotebooksForTomorrow() {
+    // This is a placeholder. In a real app, you'd fetch user data
+    // from IndexedDB and call your AI function via a server endpoint.
+    // For this example, we'll simulate a response.
+    console.log("Simulating fetching notebook advice...");
+    // Let's assume we have a function to get this data
+    // const advice = await getNotebookAdviceForTomorrow();
+    // return advice.notebooks;
+    return ["Matemáticas", "Historia"]; // Example data
 }
 
-self.addEventListener('periodicsync', (event) => {
-    if (event.tag === PERIODIC_SYNC_TAG) {
-        event.waitUntil(showNotification());
-    }
+
+self.addEventListener('periodicsync', event => {
+  if (event.tag === 'check-notebooks') {
+    event.waitUntil(
+      (async () => {
+        try {
+          const notebooks = await getNotebooksForTomorrow();
+          if (notebooks && notebooks.length > 0) {
+            self.registration.showNotification('Prepara tu Mochila', {
+              body: `Para mañana necesitas: ${notebooks.join(', ')}.`,
+              icon: '/icons/icon-192x192.svg',
+              badge: '/icons/icon-192x192.svg'
+            });
+          }
+        } catch (error) {
+          console.error('Periodic sync failed:', error);
+        }
+      })()
+    );
+  }
 });
